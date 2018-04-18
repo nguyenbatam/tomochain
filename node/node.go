@@ -303,47 +303,13 @@ func (n *Node) stopInProc() {
 
 // startIPC initializes and starts the IPC RPC endpoint.
 func (n *Node) startIPC(apis []rpc.API) error {
-	// Short circuit if the IPC endpoint isn't being exposed
 	if n.ipcEndpoint == "" {
-		return nil
+		return nil // IPC disabled.
 	}
-	// Register all the APIs exposed by the services
-	handler := rpc.NewServer()
-	for _, api := range apis {
-		if err := handler.RegisterName(api.Namespace, api.Service); err != nil {
-			return err
-		}
-		n.log.Debug("IPC registered", "service", api.Service, "namespace", api.Namespace)
-	}
-	// All APIs registered, start the IPC listener
-	var (
-		listener net.Listener
-		err      error
-	)
-	if listener, err = rpc.CreateIPCListener(n.ipcEndpoint); err != nil {
+	listener, handler, err := rpc.StartIPCEndpoint(n.ipcEndpoint, apis)
+	if err != nil {
 		return err
 	}
-	go func() {
-		n.log.Info("IPC endpoint opened", "url", n.ipcEndpoint)
-
-		for {
-			conn, err := listener.Accept()
-			if err != nil {
-				// Terminate if the listener was closed
-				n.lock.RLock()
-				closed := n.ipcListener == nil
-				n.lock.RUnlock()
-				if closed {
-					return
-				}
-				// Not closed, just some error; report and continue
-				n.log.Error("IPC accept failed", "err", err)
-				continue
-			}
-			go handler.ServeCodec(rpc.NewJSONCodec(conn), rpc.OptionMethodInvocation|rpc.OptionSubscriptions)
-		}
-	}()
-	// All listeners booted successfully
 	n.ipcListener = listener
 	n.ipcHandler = handler
 
