@@ -406,9 +406,10 @@ type TransactionsByPriceAndNonce struct {
 // It also classifies special txs and normal txs
 func NewTransactionsByPriceAndNonce(signer Signer, txs map[common.Address]Transactions) (*TransactionsByPriceAndNonce, Transactions) {
 	// Initialize a price based heap with the head transactions
+
 	heads := TxByPrice{}
 	specialTxs := Transactions{}
-	for _, accTxs := range txs {
+	for from, accTxs := range txs {
 		var normalTxs Transactions
 		lastSpecialTx := -1
 		for i, tx := range accTxs {
@@ -429,6 +430,9 @@ func NewTransactionsByPriceAndNonce(signer Signer, txs map[common.Address]Transa
 			heads = append(heads, normalTxs[0])
 			// Ensure the sender address is from the signer
 			txs[acc] = normalTxs[1:]
+			if from != acc {
+				delete(txs, from)
+			}
 		}
 	}
 	heap.Init(&heads)
