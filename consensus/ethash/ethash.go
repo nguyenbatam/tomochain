@@ -32,7 +32,7 @@ import (
 	"time"
 	"unsafe"
 
-	mmap "github.com/edsrzf/mmap-go"
+	"github.com/edsrzf/mmap-go"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/metrics"
@@ -371,7 +371,7 @@ func MakeDataset(block uint64, dir string) {
 type Mode uint
 
 const (
-	ModeNormal Mode = iota
+	ModeNormal   Mode = iota
 	ModeShared
 	ModeTest
 	ModeFake
@@ -380,12 +380,12 @@ const (
 
 // Config are the configuration parameters of the ethash.
 type Config struct {
-	CacheDir       string `toml:"cachedir"`
-	CachesInMem    int    `toml:"cachesinmem"`
-	CachesOnDisk   int    `toml:"cachesinmem"`
-	DatasetDir     string `toml:"cachesinmem"`
-	DatasetsInMem  int    `toml:"cachesinmem"`
-	DatasetsOnDisk int    `toml:"cachesinmem"`
+	CacheDir       string
+	CachesInMem    int
+	CachesOnDisk   int
+	DatasetDir     string
+	DatasetsInMem  int
+	DatasetsOnDisk int
 	PowMode        Mode
 }
 
