@@ -318,6 +318,7 @@ func (tab *Table) lookup(targetID NodeID, refreshIfEmpty bool) []*Node {
 				go func() {
 					// Find potential neighbors to bond with
 					r, err := tab.net.findnode(n.ID, n.addr(), targetID)
+					log.Info("findnode and result", "n", n, "r", r)
 					if err != nil {
 						// Bump the failure counter to detect and evacuate non-bonded entries
 						fails := tab.db.findFails(n.ID) + 1
@@ -329,6 +330,7 @@ func (tab *Table) lookup(targetID NodeID, refreshIfEmpty bool) []*Node {
 							tab.delete(n)
 						}
 					}
+					log.Info("findnode", "n", n, "targetID", common.ToHex(targetID.Bytes()), "target", target.Hex(), "self", common.ToHex(tab.self.ID.Bytes()))
 					reply <- tab.bondall(r)
 				}()
 			}

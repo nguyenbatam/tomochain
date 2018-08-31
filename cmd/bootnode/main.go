@@ -127,6 +127,7 @@ func main() {
 			AnnounceAddr: realaddr,
 			NetRestrict:  restrictList,
 		}
+		log.Info("config", "cfg", cfg)
 		if _, err := discover.ListenUDP(conn, cfg); err != nil {
 			utils.Fatalf("%v", err)
 		}
