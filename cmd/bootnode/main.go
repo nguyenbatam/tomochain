@@ -27,6 +27,7 @@ import (
 	"github.com/ethereum/go-ethereum/cmd/utils"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/p2p"
 	"github.com/ethereum/go-ethereum/p2p/discover"
 	"github.com/ethereum/go-ethereum/p2p/discv5"
 	"github.com/ethereum/go-ethereum/p2p/nat"
@@ -131,7 +132,21 @@ func main() {
 		if _, err := discover.ListenUDP(conn, cfg); err != nil {
 			utils.Fatalf("%v", err)
 		}
+		go p2p.CheckVersionHandShake()
 	}
 
 	select {}
 }
+
+/**
+srv.ourHandshake = &protoHandshake{Version: baseProtocolVersion, Name: srv.Name, ID: discover.PubkeyID(&srv.PrivateKey.PublicKey)}
+	for _, p := range srv.Protocols {
+		srv.ourHandshake.Caps = append(srv.ourHandshake.Caps, p.cap())
+	}
+phs, err := c.doProtoHandshake(srv.ourHandshake)
+c := &conn{fd: fd, transport: srv.newTransport(fd), flags: flags, cont: make(chan error)}
+mfd := newMeteredConn(fd, false)
+fd, err := srv.Dialer.Dial(dest)
+err := t.dial(srv, t.dest)
+go func() { t.Do(srv); taskdone <- t }()
+*/

@@ -259,7 +259,6 @@ func newUDP(c conn, cfg Config) (*Table, *udp, error) {
 		return nil, nil, err
 	}
 	udp.Table = tab
-
 	go udp.loop()
 	go udp.readLoop(cfg.Unhandled)
 	return udp.Table, udp, nil
@@ -519,6 +518,7 @@ func (t *udp) readLoop(unhandled chan<- ReadPacket) {
 	buf := make([]byte, 1280)
 	for {
 		nbytes, from, err := t.conn.ReadFromUDP(buf)
+
 		if netutil.IsTemporaryError(err) {
 			// Ignore temporary read errors.
 			log.Debug("Temporary UDP read error", "err", err)
@@ -591,6 +591,17 @@ func (req *ping) handle(t *udp, from *net.UDPAddr, fromID NodeID, mac []byte) er
 	if !t.handleReply(fromID, pingPacket, req) {
 		// Note: we're ignoring the provided IP address right now
 		go t.bond(true, fromID, from, req.From.TCP)
+		fmt.Println("RequestCheckProtocolVersionChanel", "fromID", fromID, "from", "from", "TCP", req.From.TCP)
+		RequestCheckProtocolVersionChanel <- CheckProtocolVersion{from, fromID, t.priv, false}
+		go func() {
+			select {
+			case result := <-ResultCheckProtocolVersionChanel:
+				if result.Result {
+					fmt.Println("ResultCheckProtocolVersionChanel", "fromID", fromID, "from", "from", "TCP", req.From.TCP, "Result", result.Result)
+					//go t.bond(true, fromID, from, req.From.TCP)
+				}
+			}
+		}()
 	}
 	return nil
 }
