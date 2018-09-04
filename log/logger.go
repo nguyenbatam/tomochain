@@ -127,7 +127,7 @@ type logger struct {
 }
 
 func (l *logger) write(msg string, lvl Lvl, ctx []interface{}) {
-	msg = "\n\n" + GetLineDetail() + " \n ===========>" + msg
+	//msg = "\n\n" + GetLineDetail() + " \n ===========>" + msg
 	l.h.Log(&Record{
 		Time: time.Now(),
 		Lvl:  lvl,
