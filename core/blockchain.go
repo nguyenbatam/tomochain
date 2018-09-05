@@ -698,7 +698,7 @@ func (bc *BlockChain) procFutureBlocks() {
 type WriteStatus byte
 
 const (
-	NonStatTy WriteStatus = iota
+	NonStatTy   WriteStatus = iota
 	CanonStatTy
 	SideStatTy
 )
@@ -1192,13 +1192,15 @@ func (bc *BlockChain) insertChain(chain types.Blocks) (int, []interface{}, []*ty
 		stats.processed++
 		stats.usedGas += usedGas
 		stats.report(chain, i, bc.stateCache.TrieDB().Size())
-		// epoch block
-		if (chain[i].NumberU64() % bc.chainConfig.Posv.Epoch) == 0 {
-			CheckpointCh <- 1
-		}
-		// prepare set of masternodes for the next epoch
-		if (chain[i].NumberU64() % bc.chainConfig.Posv.Epoch) == (bc.chainConfig.Posv.Epoch - bc.chainConfig.Posv.Gap) {
-			M1Ch <- 1
+		if bc.chainConfig.Posv != nil {
+			// epoch block
+			if (chain[i].NumberU64() % bc.chainConfig.Posv.Epoch) == 0 {
+				CheckpointCh <- 1
+			}
+			// prepare set of masternodes for the next epoch
+			if (chain[i].NumberU64() % bc.chainConfig.Posv.Epoch) == (bc.chainConfig.Posv.Epoch - bc.chainConfig.Posv.Gap) {
+				M1Ch <- 1
+			}
 		}
 	}
 	// Append a single chain head event if we've progressed the chain
