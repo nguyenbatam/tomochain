@@ -284,7 +284,7 @@ func startNode(ctx *cli.Context, stack *node.Node, cfg tomoConfig) {
 		}
 	}()
 	// Start auxiliary services if enabled
-	if cfg.StakeEnable || ctx.GlobalBool(utils.DeveloperFlag.Name) {
+	if ctx.GlobalBool(utils.DeveloperFlag.Name) {
 		// Mining only makes sense if a full Ethereum node is running
 		if ctx.GlobalBool(utils.LightModeFlag.Name) || ctx.GlobalString(utils.SyncModeFlag.Name) == "light" {
 			utils.Fatalf("Light clients do not support staking")
