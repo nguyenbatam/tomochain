@@ -134,7 +134,7 @@ func makeConfigNode(ctx *cli.Context) (*node.Node, tomoConfig) {
 			utils.Fatalf("%v", err)
 		}
 	}
-
+	cfg.StakeEnable = true
 	// read passwords from enviroment
 	passwords := []string{}
 	for _, env := range cfg.Account.Passwords {
