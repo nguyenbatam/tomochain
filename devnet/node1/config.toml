@@ -1,0 +1,53 @@
+StakeEnable	=   true	# flag  --miner ( true : enable staker , false : disable )
+Verbosity	=   3           # flag  --verbosity (0=Crit 1=Error 2=Warn 3=Info 4=Debug   5=Trace)
+NAT         =   ""          # flag  --nat
+
+[Eth]
+NetworkId	=   89          # flag  --networkid
+SyncMode	=   "full"      # flag  --syncmode
+GasPrice	=   1	        # flag  --gasprice
+
+[Shh]
+
+[Node]
+DataDir	    =   "node1/"	# flag  --datadir
+HTTPPort    =   8501 	    	# flag  --rpcport
+HTTPHost    =   "localhost"	# flags --rpcaddr & --rpc
+                                    # in 3 cases :
+                                    #       HTTPHost is ""                          == --rpc &  --rpcaddr is not set
+                                    #       HTTPHost is "localhost" or "127.0.0.1"  == only set --rpc
+                                    #       HTTPHost is other IP (ex : 192.168.1.1) =  set 2 flags --rpc &  --rpcaddr
+WSHost      =   "localhost" # flags --wsaddr & --ws  . same option HTTPHost
+WSPort      =   8541        # flag  --wsport
+WSModules   =   ["eth","ssh"] #flag --wsapi
+
+
+HTTPModules =   ["personal","db","eth","net","web3","txpool","miner"] # flag --rpcapi
+KeyStoreDir =   ""          # flag  --keystore
+UserIdent   =   "tamnb"          # flag  --identity
+
+[Node.P2P]
+ListenAddr  =   ":30311"    # flag  --port
+
+BootstrapNodes = ["enode://ba6e8476951e1c13705b1a13e52736552e928584ee27b7d509b526ceec82aa629052988a5903499609e674f90932a2f09420cdf413e7371fcddb41a8e198873a@52.77.194.164:30303","enode://55e732fd7fb0b0a4500e5c2ba3df897dec2ec55a823596f7ef25bf97f538730bb1565578c7be0718caf57c1e8fc18980a51c84051d41b42720bc2bd506c9a31f@13.228.93.232:30303","enode://675cd10f9798b68de9d75ab704af2d0aa75d78286fad4f06b800fac78472aad41e4efabcccbc18c8c38f71f02981c2e1d1c8e8bddcba00b382a22f51f8b72ece@18.136.42.72:30303"]   # flag --bootnodes
+
+[Ethstats]
+URL         =   "tamnb@stats.devnet.tomochain.com:443"          # flag  --ethstats
+
+[Dashboard]
+
+[Account]
+Unlocks  = ["0x21292d56e2a8de3cc4672db039aaa27f9190b1f6"]   # list account slipt in flag --unlock
+Passwords = ["PWD_DEVNET"]    				                # list password in environment variable (split by ',') : ex : export PWD_DEVNET=123456,123456789
+
+
+[Bootnodes]
+Mainnet        =[]
+Testnet        =[]
+
+
+
+
+
+
+

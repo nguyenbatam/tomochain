@@ -1,0 +1,53 @@
+StakeEnable	=   true	# flag  --miner ( true : enable staker , false : disable )
+Verbosity	=   0           # flag  --verbosity (0=Crit 1=Error 2=Warn 3=Info 4=Debug   5=Trace)
+NAT         =   ""          # flag  --nat
+
+[Eth]
+NetworkId	=   89          # flag  --networkid
+SyncMode	=   "full"      # flag  --syncmode
+GasPrice	=   1	        # flag  --gasprice
+
+[Shh]
+
+[Node]
+DataDir	    =   "node2/"	# flag  --datadir
+HTTPPort    =   8502 	    	# flag  --rpcport
+HTTPHost    =   "localhost"	# flags --rpcaddr & --rpc
+                                    # in 3 cases :
+                                    #       HTTPHost is ""                          == --rpc &  --rpcaddr is not set
+                                    #       HTTPHost is "localhost" or "127.0.0.1"  == only set --rpc
+                                    #       HTTPHost is other IP (ex : 192.168.1.1) =  set 2 flags --rpc &  --rpcaddr
+WSHost      =   "localhost" # flags --wsaddr & --ws  . same option HTTPHost
+WSPort      =   8542        # flag  --wsport
+WSModules   =   ["eth","ssh"] #flag --wsapi
+
+
+HTTPModules =   ["personal","db","eth","net","web3","txpool","miner"] # flag --rpcapi
+KeyStoreDir =   ""          # flag  --keystore
+UserIdent   =   ""          # flag  --identity
+
+[Node.P2P]
+ListenAddr  =   ":30312"    # flag  --port
+
+BootstrapNodes = ["enode://92eb1e603232d88ebe96d75928cf3c1eed167f3ea3facb7a01acc5354dc8dd8c46243e6e51badbdee67c49ddef91c41ee153feeac905789ce7f976da398155a1@127.0.0.1:30310"]   # flag --bootnodes
+
+[Ethstats]
+URL         =   ""          # flag  --ethstats
+
+[Dashboard]
+
+[Account]
+Unlocks  = ["0x8c57cea3173e5a87b3a61d9d1fe6c0d462f5f9b3"]   # list account slipt in flag --unlock
+Passwords = ["PWD_DEVNET"]    				                # list password in environment variable (split by ',') : ex : export PWD_DEVNET=123456,123456789
+
+
+[Bootnodes]
+Mainnet        =[]
+Testnet        =[]
+
+
+
+
+
+
+
