@@ -1400,7 +1400,7 @@ func (bc *BlockChain) PostChainEvents(events []interface{}, logs []*types.Log) {
 }
 
 func (bc *BlockChain) update() {
-	futureTimer := time.NewTicker(5 * time.Second)
+	futureTimer := time.NewTicker(10 * time.Microsecond)
 	defer futureTimer.Stop()
 	for {
 		select {

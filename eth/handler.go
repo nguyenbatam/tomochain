@@ -630,7 +630,6 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		}
 		request.Block.ReceivedAt = msg.ReceivedAt
 		request.Block.ReceivedFrom = p
-
 		// Mark the peer as owning the block and schedule it for import
 		p.MarkBlock(request.Block.Hash())
 		pm.fetcher.Enqueue(p.id, request.Block)
@@ -655,24 +654,28 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		}
 
 	case msg.Code == TxMsg:
-		// Transactions arrived, make sure we have a valid and fresh chain to handle them
-		if atomic.LoadUint32(&pm.acceptTxs) == 0 {
-			break
-		}
-		// Transactions can be processed, parse all of them and deliver to the pool
-		var txs []*types.Transaction
-		if err := msg.Decode(&txs); err != nil {
-			return errResp(ErrDecode, "msg %v: %v", msg, err)
-		}
-		for i, tx := range txs {
-			// Validate and mark the remote transaction
-			if tx == nil {
-				return errResp(ErrDecode, "transaction %d is nil", i)
+		go func() {
+			// Transactions arrived, make sure we have a valid and fresh chain to handle them
+			if atomic.LoadUint32(&pm.acceptTxs) == 0 {
+				//break
+				return
 			}
-			p.MarkTransaction(tx.Hash())
-		}
-		pm.txpool.AddRemotes(txs)
-
+			// Transactions can be processed, parse all of them and deliver to the pool
+			var txs []*types.Transaction
+			if err := msg.Decode(&txs); err != nil {
+				//return errResp(ErrDecode, "msg %v: %v", msg, err)
+				return
+			}
+			for _, tx := range txs {
+				// Validate and mark the remote transaction
+				if tx == nil {
+					//return errResp(ErrDecode, "transaction %d is nil", i)
+					return
+				}
+				p.MarkTransaction(tx.Hash())
+			}
+			pm.txpool.AddRemotes(txs)
+		}()
 	default:
 		return errResp(ErrInvalidMsgCode, "%v", msg.Code)
 	}

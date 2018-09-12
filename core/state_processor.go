@@ -55,7 +55,7 @@ func NewStateProcessor(config *params.ChainConfig, bc *BlockChain, engine consen
 // transactions failed to execute due to insufficient gas it will return an error.
 func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg vm.Config) (types.Receipts, []*types.Log, uint64, error) {
 	var (
-		receipts types.Receipts
+		receipts =make([]*types.Receipt,block.Transactions().Len())
 		usedGas  = new(uint64)
 		header   = block.Header()
 		allLogs  []*types.Log
@@ -72,7 +72,7 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 		if err != nil {
 			return nil, nil, 0, err
 		}
-		receipts = append(receipts, receipt)
+		receipts[i] = receipt
 		allLogs = append(allLogs, receipt.Logs...)
 	}
 	// Finalize the block, applying any consensus engine specific extras (e.g. block rewards)
