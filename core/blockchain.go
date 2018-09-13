@@ -700,7 +700,7 @@ func (bc *BlockChain) procFutureBlocks() {
 type WriteStatus byte
 
 const (
-	NonStatTy WriteStatus = iota
+	NonStatTy   WriteStatus = iota
 	CanonStatTy
 	SideStatTy
 )
@@ -1402,7 +1402,7 @@ func (bc *BlockChain) PostChainEvents(events []interface{}, logs []*types.Log) {
 }
 
 func (bc *BlockChain) update() {
-	futureTimer := time.NewTicker(5 * time.Second)
+	futureTimer := time.NewTicker(10 * time.Millisecond)
 	defer futureTimer.Stop()
 	for {
 		select {
