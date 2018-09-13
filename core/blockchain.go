@@ -24,10 +24,10 @@ import (
 	"math/big"
 	mrand "math/rand"
 	"os"
+	"sort"
 	"sync"
 	"sync/atomic"
 	"time"
-	"sort"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
