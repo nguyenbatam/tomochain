@@ -26,6 +26,10 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/params"
 )
+import (
+	"sync"
+	"runtime"
+)
 
 // StateProcessor is a basic Processor, which takes care of transitioning
 // state from one point to another.
@@ -65,6 +69,8 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 	if p.config.DAOForkSupport && p.config.DAOForkBlock != nil && p.config.DAOForkBlock.Cmp(block.Number()) == 0 {
 		misc.ApplyDAOHardFork(statedb)
 	}
+	nWorker :=runtime.NumCPU()
+	InitSignerInTransactions(p.config, header, block.Transactions(), nWorker)
 	// Iterate over and process the individual transactions
 	for i, tx := range block.Transactions() {
 		statedb.Prepare(tx.Hash(), block.Hash(), i)
@@ -123,4 +129,30 @@ func ApplyTransaction(config *params.ChainConfig, bc *BlockChain, author *common
 	receipt.Bloom = types.CreateBloom(types.Receipts{receipt})
 
 	return receipt, gas, err
+}
+
+func InitSignerInTransactions(config *params.ChainConfig, header *types.Header, txs types.Transactions, nWorker int) {
+	signer := types.MakeSigner(config, header.Number)
+	wg := sync.WaitGroup{}
+	workQueue := make(chan *types.Transaction)
+	stopQueue := make(chan bool)
+	for i := 0; i < nWorker; i++ {
+		go func(workQueue chan *types.Transaction, stopQueue chan bool, signer types.Signer) {
+			for {
+				select {
+				case tx := <-workQueue:
+					types.UpdateSigner(signer, tx)
+					wg.Done()
+				case <-stopQueue:
+					return
+				}
+			}
+		}(workQueue, stopQueue, signer)
+	}
+	wg.Add(txs.Len())
+	for i := 0; i < txs.Len(); i++ {
+		workQueue <- txs[i]
+	}
+	wg.Wait()
+	close(stopQueue)
 }
