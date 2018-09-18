@@ -25,6 +25,10 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/params"
+	"sync"
+	"runtime"
+	"github.com/ethereum/go-ethereum/log"
+	"time"
 )
 
 var (
@@ -258,14 +262,30 @@ func deriveChainId(v *big.Int) *big.Int {
 	v = new(big.Int).Sub(v, big.NewInt(35))
 	return v.Div(v, big.NewInt(2))
 }
-
-func UpdateSigner(signer Signer, tx *Transaction) {
-	if tx == nil {
-		return
+func Prepare(signer Signer, txs Transactions){
+	start:=time.Now()
+	nWorker := runtime.NumCPU()
+	wg := sync.WaitGroup{}
+	workQueue := make(chan *Transaction)
+	stopQueue := make(chan bool)
+	for i := 0; i < nWorker; i++ {
+		go func(workQueue chan *Transaction, stopQueue chan bool, signer Signer) {
+			for {
+				select {
+				case tx := <-workQueue:
+					Sender(signer, tx)
+					wg.Done()
+				case <-stopQueue:
+					return
+				}
+			}
+		}(workQueue, stopQueue, signer)
 	}
-	addr, err := signer.Sender(tx)
-	if err != nil {
-		return
+	wg.Add(txs.Len())
+	for i := 0; i < txs.Len(); i++ {
+		workQueue <- txs[i]
 	}
-	tx.from.Store(sigCache{signer: signer, from: addr})
+	wg.Wait()
+	close(stopQueue)
+	log.Info("Prepare signer","len",txs.Len(),"time",common.PrettyDuration(time.Since(start)))
 }

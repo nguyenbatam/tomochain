@@ -105,11 +105,16 @@ var (
 	underpricedTxCounter = metrics.NewRegisteredCounter("txpool/underpriced", nil)
 )
 
+var (
+	TimeAddTx  int64 = 0
+	TimeAddTxs int64 = 0
+)
+
 // TxStatus is the current status of a transaction as seen by the pool.
 type TxStatus uint
 
 const (
-	TxStatusUnknown TxStatus = iota
+	TxStatusUnknown  TxStatus = iota
 	TxStatusQueued
 	TxStatusPending
 	TxStatusIncluded
@@ -292,8 +297,8 @@ func (pool *TxPool) loop() {
 				}
 				pool.reset(head.Header(), ev.Block.Header())
 				head = ev.Block
-
 				pool.mu.Unlock()
+
 			}
 			// Be unsubscribed due to system stopped
 		case <-pool.chainHeadSub.Err():
@@ -458,7 +463,6 @@ func (pool *TxPool) SubscribeTxPreEvent(ch chan<- TxPreEvent) event.Subscription
 func (pool *TxPool) GasPrice() *big.Int {
 	pool.mu.RLock()
 	defer pool.mu.RUnlock()
-
 	return new(big.Int).Set(pool.gasPrice)
 }
 
@@ -793,9 +797,9 @@ func (pool *TxPool) AddRemotes(txs []*types.Transaction) []error {
 
 // addTx enqueues a single transaction into the pool if it is valid.
 func (pool *TxPool) addTx(tx *types.Transaction, local bool) error {
+	types.Sender(pool.signer, tx)
 	pool.mu.Lock()
 	defer pool.mu.Unlock()
-
 	// Try to inject the transaction and update any state
 	replace, err := pool.add(tx, local)
 	if err != nil {
@@ -811,9 +815,9 @@ func (pool *TxPool) addTx(tx *types.Transaction, local bool) error {
 
 // addTxs attempts to queue a batch of transactions if they are valid.
 func (pool *TxPool) addTxs(txs []*types.Transaction, local bool) []error {
+	types.Prepare(pool.signer, txs)
 	pool.mu.Lock()
 	defer pool.mu.Unlock()
-
 	return pool.addTxsLocked(txs, local)
 }
 
@@ -823,7 +827,6 @@ func (pool *TxPool) addTxsLocked(txs []*types.Transaction, local bool) []error {
 	// Add the batch of transaction, tracking the accepted ones
 	dirty := make(map[common.Address]struct{})
 	errs := make([]error, len(txs))
-
 	for i, tx := range txs {
 		var replace bool
 		if replace, errs[i] = pool.add(tx, local); errs[i] == nil {

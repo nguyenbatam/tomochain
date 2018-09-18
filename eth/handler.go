@@ -308,9 +308,9 @@ func (pm *ProtocolManager) handle(p *peer) error {
 	errorHandleMsg := false
 	go func() {
 		for {
-			tx := p.GetTransactionFromQueue()
-			if tx != nil {
-				pm.txpool.AddRemotes(types.Transactions{tx})
+			txs := p.GetTransactionFromQueue()
+			if txs.Len() > 0 {
+				pm.txpool.AddRemotes(txs)
 			} else {
 				if errorHandleMsg {
 					return
