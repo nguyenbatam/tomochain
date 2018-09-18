@@ -1140,6 +1140,7 @@ func (bc *BlockChain) insertChain(chain types.Blocks) (int, []interface{}, []*ty
 			bc.reportBlock(block, nil, err)
 			return i, events, coalescedLogs, err
 		}
+		log.Info("Commit start insert block ","number",block.NumberU64())
 		// Create a new statedb using the parent block and report an
 		// error if it fails.
 		var parent *types.Block
