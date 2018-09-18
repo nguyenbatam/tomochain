@@ -495,7 +495,7 @@ func (self *worker) commitNewWork() {
 			}
 		}
 	}
-
+	log.Info("Commit end wait  mining work", "number", parent.NumberU64()+1, "elapsed", common.PrettyDuration(time.Since(tstart)))
 	tstamp := tstart.Unix()
 	if parent.Time().Cmp(new(big.Int).SetInt64(tstamp)) >= 0 {
 		tstamp = parent.Time().Int64() + 1

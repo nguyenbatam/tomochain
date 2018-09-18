@@ -27,8 +27,8 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 	"sync"
 	"runtime"
-	"github.com/ethereum/go-ethereum/log"
 	"time"
+	"github.com/ethereum/go-ethereum/log"
 )
 
 var (
@@ -262,8 +262,8 @@ func deriveChainId(v *big.Int) *big.Int {
 	v = new(big.Int).Sub(v, big.NewInt(35))
 	return v.Div(v, big.NewInt(2))
 }
-func Prepare(signer Signer, txs Transactions){
-	start:=time.Now()
+func Prepare(signer Signer, txs Transactions) {
+	start := time.Now()
 	nWorker := runtime.NumCPU()
 	wg := sync.WaitGroup{}
 	workQueue := make(chan *Transaction)
