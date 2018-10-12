@@ -32,6 +32,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 )
 
@@ -276,6 +277,22 @@ func (c *Client) CallContext(ctx context.Context, result interface{}, method str
 	}
 }
 
+// CallContext performs a JSON-RPC call with the given arguments. If the context is
+// canceled before the call has successfully returned, CallContext returns immediately.
+//
+// The result must be a pointer so that package json can unmarshal into it. You
+// can also pass nil, in which case the result is ignored.
+func (c *Client) CallContextwithRetry(ctx context.Context, result interface{}, method string, args ...interface{}) error {
+	err := c.CallContext(ctx, result, method, args)
+	for i := 0; i < common.NumberRetrySmartContract; i++ {
+		if err == nil {
+			break
+		}
+		err = c.CallContext(ctx, result, method, args)
+	}
+	return err
+}
+
 // BatchCall sends all given requests as a single batch and waits for the server
 // to return a response for all of them.
 //
@@ -501,7 +518,7 @@ func (c *Client) dispatch(conn net.Conn) {
 		case <-c.close:
 			return
 
-		// Read path.
+			// Read path.
 		case batch := <-c.readResp:
 			for _, msg := range batch {
 				switch {
@@ -540,7 +557,7 @@ func (c *Client) dispatch(conn net.Conn) {
 			reading = true
 			conn = newconn
 
-		// Send path.
+			// Send path.
 		case op := <-requestOpLock:
 			// Stop listening for further send ops until the current one is done.
 			requestOpLock = nil
