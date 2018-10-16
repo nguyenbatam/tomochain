@@ -1,5 +1,7 @@
 package common
 
+import "math/big"
+
 const (
 	RewardMasterPercent     = 40
 	RewardVoterPercent      = 50
@@ -13,3 +15,5 @@ const (
 	MaxMasternodes          = 150
 	LimitPenaltyEpoch       = 4
 )
+
+var TIP3110Block = big.NewInt(3000000)

@@ -89,6 +89,24 @@ type Header struct {
 	Penalties   []byte         `json:"penalties"        gencodec:"required"`
 }
 
+type OldHeader struct {
+	ParentHash  common.Hash    `json:"parentHash"       gencodec:"required"`
+	UncleHash   common.Hash    `json:"sha3Uncles"       gencodec:"required"`
+	Coinbase    common.Address `json:"miner"            gencodec:"required"`
+	Root        common.Hash    `json:"stateRoot"        gencodec:"required"`
+	TxHash      common.Hash    `json:"transactionsRoot" gencodec:"required"`
+	ReceiptHash common.Hash    `json:"receiptsRoot"     gencodec:"required"`
+	Bloom       Bloom          `json:"logsBloom"        gencodec:"required"`
+	Difficulty  *big.Int       `json:"difficulty"       gencodec:"required"`
+	Number      *big.Int       `json:"number"           gencodec:"required"`
+	GasLimit    uint64         `json:"gasLimit"         gencodec:"required"`
+	GasUsed     uint64         `json:"gasUsed"          gencodec:"required"`
+	Time        *big.Int       `json:"timestamp"        gencodec:"required"`
+	Extra       []byte         `json:"extraData"        gencodec:"required"`
+	MixDigest   common.Hash    `json:"mixHash"          gencodec:"required"`
+	Nonce       BlockNonce     `json:"nonce"            gencodec:"required"`
+}
+
 // field type overrides for gencodec
 type headerMarshaling struct {
 	Difficulty *hexutil.Big
@@ -103,7 +121,27 @@ type headerMarshaling struct {
 // Hash returns the block hash of the header, which is simply the keccak256 hash of its
 // RLP encoding.
 func (h *Header) Hash() common.Hash {
-	return rlpHash(h)
+	if isForked(common.TIP3110Block, h.Number) {
+		return rlpHash(h)
+	} else {
+		return rlpHash(&OldHeader{
+			h.ParentHash,
+			h.UncleHash,
+			h.Coinbase,
+			h.Root,
+			h.TxHash,
+			h.ReceiptHash,
+			h.Bloom,
+			h.Difficulty,
+			h.Number,
+			h.GasLimit,
+			h.GasUsed,
+			h.Time,
+			h.Extra,
+			h.MixDigest,
+			h.Nonce,
+		})
+	}
 }
 
 // HashNoNonce returns the hash which is used as input for the proof-of-work search.
@@ -456,3 +494,30 @@ func (self blockSorter) Swap(i, j int) {
 func (self blockSorter) Less(i, j int) bool { return self.by(self.blocks[i], self.blocks[j]) }
 
 func Number(b1, b2 *Block) bool { return b1.header.Number.Cmp(b2.header.Number) < 0 }
+
+func isForked(s, head *big.Int) bool {
+	if s == nil || head == nil {
+		return false
+	}
+	return s.Cmp(head) <= 0
+}
+
+func ConvertOldHeaderToNew(new *Header, old *OldHeader) {
+	if new == nil || old == nil {
+		return
+	}
+	new.ParentHash = old.ParentHash
+	new.UncleHash = old.UncleHash
+	new.Coinbase = old.Coinbase
+	new.Root = old.Root
+	new.ReceiptHash = old.ReceiptHash
+	new.Bloom = old.Bloom
+	new.Difficulty = old.Difficulty
+	new.Number = old.Number
+	new.GasLimit = old.GasLimit
+	new.GasUsed = old.GasUsed
+	new.Time = old.Time
+	new.Extra = old.Extra
+	new.MixDigest = old.MixDigest
+	new.Nonce = old.Nonce
+}

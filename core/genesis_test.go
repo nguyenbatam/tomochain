@@ -30,6 +30,7 @@ import (
 )
 
 func TestDefaultGenesisBlock(t *testing.T) {
+	common.TIP3110Block = big.NewInt(-1)
 	block := DefaultGenesisBlock().ToBlock(nil)
 	if block.Hash() != params.MainnetGenesisHash {
 		t.Errorf("wrong mainnet genesis hash, got %v, want %v", block.Hash().String(), params.MainnetGenesisHash.String())
@@ -41,6 +42,7 @@ func TestDefaultGenesisBlock(t *testing.T) {
 }
 
 func TestSetupGenesis(t *testing.T) {
+	common.TIP3110Block = big.NewInt(-1)
 	var (
 		customghash = common.HexToHash("0xfc8a143549950b0d3e3e7b70b0067b152e6b903ab5438f1ea87f0448ec93da48")
 		customg     = Genesis{

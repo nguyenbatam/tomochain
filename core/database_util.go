@@ -173,8 +173,12 @@ func GetHeader(db DatabaseReader, hash common.Hash, number uint64) *types.Header
 	}
 	header := new(types.Header)
 	if err := rlp.Decode(bytes.NewReader(data), header); err != nil {
-		log.Error("Invalid block header RLP", "hash", hash, "err", err)
-		return nil
+		oldHeader := new(types.OldHeader)
+		if err := rlp.Decode(bytes.NewReader(data), oldHeader); err != nil {
+			log.Error("Invalid block header RLP", "hash", hash, "err", err)
+			return nil
+		}
+		types.ConvertOldHeaderToNew(header, oldHeader)
 	}
 	return header
 }

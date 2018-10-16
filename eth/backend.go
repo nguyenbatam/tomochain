@@ -122,7 +122,9 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 		return nil, genesisErr
 	}
 	log.Info("Initialised chain configuration", "config", chainConfig)
-
+	if chainConfig.TIP3110Block != nil {
+		common.TIP3110Block = chainConfig.TIP3110Block
+	}
 	eth := &Ethereum{
 		config:         config,
 		chainDb:        chainDb,
