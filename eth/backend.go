@@ -123,7 +123,9 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 		return nil, genesisErr
 	}
 	log.Info("Initialised chain configuration", "config", chainConfig)
-
+	if chainConfig.TIP3110Block != nil {
+		common.TIP3110Block = chainConfig.TIP3110Block
+	}
 	eth := &Ethereum{
 		config:         config,
 		chainDb:        chainDb,
@@ -260,7 +262,6 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 					for i := prevEpoc; i < blockNumberEpoc; i++ {
 						blockHeader := chain.GetHeaderByNumber(i)
 						if len(penSigners) > 0 {
-							log.Debug("GetSignersFromContract", "header", blockHeader, "number", i)
 							signedMasternodes, err := contracts.GetSignersFromContract(blockSignerAddr, client, blockHeader.Hash())
 							if err != nil {
 								return nil, err

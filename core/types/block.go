@@ -120,7 +120,9 @@ type headerMarshaling struct {
 // Hash returns the block hash of the header, which is simply the keccak256 hash of its
 // RLP encoding.
 func (h *Header) Hash() common.Hash {
-	//if isForked(common.TIP3110Block, h.Number) {
+	if isForked(common.TIP3110Block, h.Number) {
+		return rlpHash(h)
+	} else {
 		return rlpHash(&OldHeader{
 			h.ParentHash,
 			h.UncleHash,
@@ -138,9 +140,7 @@ func (h *Header) Hash() common.Hash {
 			h.MixDigest,
 			h.Nonce,
 		})
-	//} else {
-	//	return rlpHash(h)
-	//}
+	}
 }
 
 func (h *OldHeader) Hash() common.Hash {
@@ -498,4 +498,24 @@ func isForked(s, head *big.Int) bool {
 		return false
 	}
 	return s.Cmp(head) <= 0
+}
+
+func ConvertOldHeaderToNew(new *Header, old *OldHeader) {
+	if new == nil || old == nil {
+		return
+	}
+	new.ParentHash = old.ParentHash
+	new.UncleHash = old.UncleHash
+	new.Coinbase = old.Coinbase
+	new.Root = old.Root
+	new.ReceiptHash = old.ReceiptHash
+	new.Bloom = old.Bloom
+	new.Difficulty = old.Difficulty
+	new.Number = old.Number
+	new.GasLimit = old.GasLimit
+	new.GasUsed = old.GasUsed
+	new.Time = old.Time
+	new.Extra = old.Extra
+	new.MixDigest = old.MixDigest
+	new.Nonce = old.Nonce
 }

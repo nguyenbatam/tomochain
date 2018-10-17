@@ -178,23 +178,8 @@ func GetHeader(db DatabaseReader, hash common.Hash, number uint64) *types.Header
 			log.Error("Invalid block header RLP", "hash", hash, "err", err)
 			return nil
 		}
-		header.ParentHash = oldHeader.ParentHash
-		header.UncleHash = oldHeader.UncleHash
-		header.Coinbase = oldHeader.Coinbase
-		header.Root = oldHeader.Root
-		header.TxHash = oldHeader.TxHash
-		header.ReceiptHash = oldHeader.ReceiptHash
-		header.Bloom = oldHeader.Bloom
-		header.Difficulty = oldHeader.Difficulty
-		header.Number = oldHeader.Number
-		header.GasLimit = oldHeader.GasLimit
-		header.GasUsed = oldHeader.GasUsed
-		header.Time = oldHeader.Time
-		header.Extra = oldHeader.Extra
-		header.MixDigest = oldHeader.MixDigest
-		header.Nonce = oldHeader.Nonce
+		types.ConvertOldHeaderToNew(header, oldHeader)
 	}
-	log.Debug("Read block number ", "hash", hash, "number", header.Number,"hash cal ",header.Hash())
 	return header
 }
 

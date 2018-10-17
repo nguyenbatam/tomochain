@@ -16,4 +16,4 @@ const (
 	LimitPenaltyEpoch       = 4
 )
 
-var TIP3110Block *big.Int
+var TIP3110Block = big.NewInt(3000000)
