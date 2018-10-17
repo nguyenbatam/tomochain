@@ -302,6 +302,10 @@ func (w *wizard) manageGenesis() {
 		fmt.Printf("Which block should Byzantium come into effect? (default = %v)\n", w.conf.Genesis.Config.ByzantiumBlock)
 		w.conf.Genesis.Config.ByzantiumBlock = w.readDefaultBigInt(w.conf.Genesis.Config.ByzantiumBlock)
 
+		fmt.Println()
+		fmt.Printf("Which block should TIP3110 come into effect? (default = %v)\n", w.conf.Genesis.Config.TIP3110Block)
+		w.conf.Genesis.Config.TIP3110Block = w.readDefaultBigInt(w.conf.Genesis.Config.TIP3110Block)
+
 		out, _ := json.MarshalIndent(w.conf.Genesis.Config, "", "  ")
 		fmt.Printf("Chain configuration updated:\n\n%s\n", out)
 

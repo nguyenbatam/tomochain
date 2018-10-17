@@ -194,6 +194,7 @@ func GetHeader(db DatabaseReader, hash common.Hash, number uint64) *types.Header
 		header.MixDigest = oldHeader.MixDigest
 		header.Nonce = oldHeader.Nonce
 	}
+	log.Debug("Read block number ", "hash", hash, "number", header.Number,"hash cal ",header.Hash())
 	return header
 }
 
