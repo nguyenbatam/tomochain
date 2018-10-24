@@ -660,6 +660,7 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 			// scenario should easily be covered by the fetcher.
 			currentBlock := pm.blockchain.CurrentBlock()
 			if trueTD.Cmp(pm.blockchain.GetTd(currentBlock.Hash(), currentBlock.NumberU64())) > 0 {
+				log.Debug("Commit start synchronise block","p",p,"currentBlock",currentBlock.NumberU64(),"request",request.Block.NumberU64())
 				go pm.synchronise(p)
 			}
 		}

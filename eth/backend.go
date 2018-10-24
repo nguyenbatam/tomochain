@@ -229,7 +229,7 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 						if (err == nil) && (event.Tx.To().String() == common.BlockSigners) && (from == m2) {
 							return nil
 						}
-					//timeout 10s
+						//timeout 10s
 					case <-time.After(time.Duration(10) * time.Second):
 						return fmt.Errorf("Time out waiting for confirmation from m2")
 					}
@@ -379,7 +379,10 @@ func getM2(snap *posv.Snapshot, eth *Ethereum, block *types.Block) (common.Addre
 	if cpNo == 0 {
 		return eth.etherbase, nil
 	}
-	cpBlk := eth.blockchain.GetBlockByNumber(cpNo)
+	cpBlk := block
+	if no%epoch != 0 {
+		cpBlk = eth.blockchain.GetBlockByNumber(cpNo)
+	}
 	m, err := contracts.GetM1M2FromCheckpointBlock(cpBlk)
 	if err != nil {
 		return common.Address{}, err

@@ -18,6 +18,7 @@ package p2p
 
 import (
 	"fmt"
+	"github.com/ethereum/go-ethereum/common"
 	"io"
 	"net"
 	"sort"
@@ -60,7 +61,8 @@ type protoHandshake struct {
 	ID         discover.NodeID
 
 	// Ignore additional fields (for forward compatibility).
-	Rest []rlp.RawValue `rlp:"tail"`
+	Rest     []rlp.RawValue `rlp:"tail"`
+	M1Adress common.Address
 }
 
 // PeerEventType is the type of peer events emitted by a p2p.Server
@@ -108,8 +110,9 @@ type Peer struct {
 	disc     chan DiscReason
 
 	// events receives message send / receive events if set
-	events   *event.Feed
-	PairPeer *Peer
+	events    *event.Feed
+	PairPeer  *Peer
+	M1Address common.Address
 }
 
 // NewPeer returns a peer for testing purposes.
@@ -169,13 +172,14 @@ func (p *Peer) Inbound() bool {
 func newPeer(conn *conn, protocols []Protocol) *Peer {
 	protomap := matchProtocols(protocols, conn.caps, conn)
 	p := &Peer{
-		rw:       conn,
-		running:  protomap,
-		created:  mclock.Now(),
-		disc:     make(chan DiscReason),
-		protoErr: make(chan error, len(protomap)+1), // protocols + pingLoop
-		closed:   make(chan struct{}),
-		log:      log.New("id", conn.id, "conn", conn.flags),
+		rw:        conn,
+		running:   protomap,
+		created:   mclock.Now(),
+		disc:      make(chan DiscReason),
+		protoErr:  make(chan error, len(protomap)+1), // protocols + pingLoop
+		closed:    make(chan struct{}),
+		log:       log.New("id", conn.id, "conn", conn.flags),
+		M1Address: conn.m1adress,
 	}
 	return p
 }

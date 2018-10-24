@@ -162,7 +162,13 @@ func (n *Node) Start() error {
 	if n.serverConfig.NodeDatabase == "" {
 		n.serverConfig.NodeDatabase = n.config.NodeDB()
 	}
-	running := &p2p.Server{Config: n.serverConfig}
+	account := accounts.Account{}
+	if wallets := n.accman.Wallets(); len(wallets) > 0 {
+		if accts := wallets[0].Accounts(); len(accts) > 0 {
+			account = accts[0]
+		}
+	}
+	running := &p2p.Server{Config: n.serverConfig, M1Address: account.Address}
 	n.log.Info("Starting peer-to-peer node", "instance", n.serverConfig.Name)
 
 	// Otherwise copy and specialize the P2P configuration

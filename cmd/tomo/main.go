@@ -18,6 +18,7 @@ package main
 
 import (
 	"fmt"
+	"github.com/ethereum/go-ethereum/accounts/keystore"
 	"os"
 	"runtime"
 	"sort"
@@ -25,7 +26,6 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/accounts"
-	"github.com/ethereum/go-ethereum/accounts/keystore"
 	"github.com/ethereum/go-ethereum/cmd/utils"
 	"github.com/ethereum/go-ethereum/consensus/posv"
 	"github.com/ethereum/go-ethereum/console"
@@ -215,8 +215,6 @@ func tomo(ctx *cli.Context) error {
 // it unlocks any requested accounts, and starts the RPC/IPC interfaces and the
 // miner.
 func startNode(ctx *cli.Context, stack *node.Node, cfg tomoConfig) {
-	// Start up the node itself
-	utils.StartNode(stack)
 
 	// Unlock any account specifically requested
 	ks := stack.AccountManager().Backends(keystore.KeyStoreType)[0].(*keystore.KeyStore)
@@ -234,6 +232,9 @@ func startNode(ctx *cli.Context, stack *node.Node, cfg tomoConfig) {
 			unlockAccount(ctx, ks, trimmed, i, cfg.Account.Passwords)
 		}
 	}
+	// Start up the node itself
+	utils.StartNode(stack)
+
 	// Register wallet event handlers to open and auto-derive wallets
 	events := make(chan accounts.WalletEvent, 16)
 	stack.AccountManager().Subscribe(events)
