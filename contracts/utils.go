@@ -23,6 +23,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"github.com/hashicorp/golang-lru"
 	"io"
 	"math/big"
 	"math/rand"
@@ -58,7 +59,7 @@ type rewardLog struct {
 }
 
 var TxSignMu sync.RWMutex
-
+var cacheSigners, _ = lru.NewARC(3 * common.EpocBlockRandomize)
 // Send tx sign for block number to smart contract blockSigner.
 func CreateTransactionSign(chainConfig *params.ChainConfig, pool *core.TxPool, manager *accounts.Manager, block *types.Block, chainDb ethdb.Database) error {
 	TxSignMu.Lock()
@@ -196,6 +197,10 @@ func BuildTxOpeningRandomize(nonce uint64, randomizeAddr common.Address, randomi
 
 // Get signers signed for blockNumber from blockSigner contract.
 func GetSignersFromContract(addrBlockSigner common.Address, client bind.ContractBackend, blockHash common.Hash) ([]common.Address, error) {
+	cache, _ := cacheSigners.Get(blockHash)
+	if cache != nil {
+		return cache.([]common.Address), nil
+	}
 	blockSigner, err := contract.NewBlockSigner(addrBlockSigner, client)
 	if err != nil {
 		log.Error("Fail get instance of blockSigner", "error", err)
@@ -207,7 +212,7 @@ func GetSignersFromContract(addrBlockSigner common.Address, client bind.Contract
 		log.Error("Fail get block signers", "error", err)
 		return nil, err
 	}
-
+	cacheSigners.Add(blockHash, addrs)
 	return addrs, nil
 }
 

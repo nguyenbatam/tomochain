@@ -1120,7 +1120,6 @@ func (bc *BlockChain) insertChain(chain types.Blocks) (int, []interface{}, []*ty
 			for j := 0; j < len(winner)/2; j++ {
 				winner[j], winner[len(winner)-1-j] = winner[len(winner)-1-j], winner[j]
 			}
-			log.Debug("Number block need calculated again", "number", block.NumberU64(), "hash", block.Hash().Hex(), "winners", len(winner))
 			// Import all the pruned blocks to make the state available
 			bc.chainmu.Unlock()
 			_, evs, logs, err := bc.insertChain(winner)
@@ -1213,6 +1212,174 @@ func (bc *BlockChain) insertChain(chain types.Blocks) (int, []interface{}, []*ty
 		events = append(events, ChainHeadEvent{lastCanon})
 	}
 	return 0, events, coalescedLogs, nil
+}
+
+// InsertChainVerifiedHeader attempts to insert the given batch of blocks in to the canonical
+// chain or, otherwise, create a fork. If an error is returned it will return
+// the index number of the failing block as well an error describing what went
+// wrong.
+//
+// After insertion is done, all accumulated events will be fired.
+func (bc *BlockChain) InsertChainVerifiedHeader(block *types.Block) error {
+	events, logs, err := bc.insertChainVerifiedHeader(block)
+	bc.PostChainEvents(events, logs)
+	return err
+}
+
+// insertChainVerifiedHeader will execute the actual chain insertion and event aggregation. The
+// only reason this method exists as a separate one is to make locking cleaner
+// with deferred statements.
+func (bc *BlockChain) insertChainVerifiedHeader(block *types.Block) ([]interface{}, []*types.Log, error) {
+	// Pre-checks passed, start the full block imports
+	bc.wg.Add(1)
+	defer bc.wg.Done()
+
+	bc.chainmu.Lock()
+	defer bc.chainmu.Unlock()
+
+	// A queued approach to delivering events. This is generally
+	// faster than direct delivery and requires much less mutex
+	// acquiring.
+	var (
+		stats         = insertStats{startTime: mclock.Now()}
+		events        = make([]interface{}, 0, 1)
+		lastCanon     *types.Block
+		coalescedLogs []*types.Log
+	)
+
+	// If the chain is terminating, stop processing blocks
+	if atomic.LoadInt32(&bc.procInterrupt) == 1 {
+		log.Debug("Premature abort during blocks processing")
+		return events, coalescedLogs, nil
+	}
+	// Wait for the block's verification to complete
+	bstart := time.Now()
+	err := bc.Validator().ValidateBody(block)
+	switch {
+	case err == ErrKnownBlock:
+		// Block and state both already known. However if the current block is below
+		// this number we did a rollback and we should reimport it nonetheless.
+		if bc.CurrentBlock().NumberU64() >= block.NumberU64() {
+			stats.ignored++
+			break
+		}
+	case err == consensus.ErrUnknownAncestor && bc.futureBlocks.Contains(block.ParentHash()):
+		bc.futureBlocks.Add(block.Hash(), block)
+		stats.queued++
+		break
+
+	case err == consensus.ErrPrunedAncestor:
+		// Block competing with the canonical chain, store in the db, but don't process
+		// until the competitor TD goes above the canonical TD
+		currentBlock := bc.CurrentBlock()
+		localTd := bc.GetTd(currentBlock.Hash(), currentBlock.NumberU64())
+		externTd := new(big.Int).Add(bc.GetTd(block.ParentHash(), block.NumberU64()-1), block.Difficulty())
+		if localTd.Cmp(externTd) > 0 {
+			if err = bc.WriteBlockWithoutState(block, externTd); err != nil {
+				return events, coalescedLogs, err
+			}
+			break
+		}
+		// Competitor chain beat canonical, gather all blocks from the common ancestor
+		var winner []*types.Block
+
+		parent := bc.GetBlock(block.ParentHash(), block.NumberU64()-1)
+		for !bc.HasState(parent.Root()) {
+			winner = append(winner, parent)
+			parent = bc.GetBlock(parent.ParentHash(), parent.NumberU64()-1)
+		}
+		for j := 0; j < len(winner)/2; j++ {
+			winner[j], winner[len(winner)-1-j] = winner[len(winner)-1-j], winner[j]
+		}
+		// Import all the pruned blocks to make the state available
+		bc.chainmu.Unlock()
+		_, evs, logs, err := bc.insertChain(winner)
+		bc.chainmu.Lock()
+		events, coalescedLogs = evs, logs
+
+		if err != nil {
+			return events, coalescedLogs, err
+		}
+
+	case err != nil:
+		bc.reportBlock(block, nil, err)
+		return events, coalescedLogs, err
+	}
+	// Create a new statedb using the parent block and report an
+	// error if it fails.
+	var parent *types.Block
+
+	parent = bc.GetBlock(block.ParentHash(), block.NumberU64()-1)
+
+	state, err := state.New(parent.Root(), bc.stateCache)
+	if err != nil {
+		return events, coalescedLogs, err
+	}
+	// Process block using the parent state as reference point.
+	receipts, logs, usedGas, err := bc.processor.Process(block, state, bc.vmConfig)
+	if err != nil {
+		bc.reportBlock(block, receipts, err)
+		return events, coalescedLogs, err
+	}
+	// Validate the state using the default validator
+	err = bc.Validator().ValidateState(block, parent, state, receipts, usedGas)
+	if err != nil {
+		bc.reportBlock(block, receipts, err)
+		return events, coalescedLogs, err
+	}
+	proctime := time.Since(bstart)
+
+	// Write the block to the chain and get the status.
+	status, err := bc.WriteBlockWithState(block, receipts, state)
+	if err != nil {
+		return events, coalescedLogs, err
+	}
+	switch status {
+	case CanonStatTy:
+		log.Debug("Inserted new block", "number", block.Number(), "hash", block.Hash(), "uncles", len(block.Uncles()),
+			"txs", len(block.Transactions()), "gas", block.GasUsed(), "elapsed", common.PrettyDuration(time.Since(bstart)))
+
+		coalescedLogs = append(coalescedLogs, logs...)
+		blockInsertTimer.UpdateSince(bstart)
+		events = append(events, ChainEvent{block, block.Hash(), logs})
+		lastCanon = block
+
+		// Only count canonical blocks for GC processing time
+		bc.gcproc += proctime
+
+	case SideStatTy:
+		log.Debug("Inserted forked block", "number", block.Number(), "hash", block.Hash(), "diff", block.Difficulty(), "elapsed",
+			common.PrettyDuration(time.Since(bstart)), "txs", len(block.Transactions()), "gas", block.GasUsed(), "uncles", len(block.Uncles()))
+
+		blockInsertTimer.UpdateSince(bstart)
+		events = append(events, ChainSideEvent{block})
+	}
+	stats.processed++
+	stats.usedGas += usedGas
+	stats.report(types.Blocks{block}, 0, bc.stateCache.TrieDB().Size())
+	if bc.chainConfig.Posv != nil {
+		// epoch block
+		if (block.NumberU64() % bc.chainConfig.Posv.Epoch) == 0 {
+			CheckpointCh <- 1
+		}
+		// prepare set of masternodes for the next epoch
+		if (block.NumberU64() % bc.chainConfig.Posv.Epoch) == (bc.chainConfig.Posv.Epoch - bc.chainConfig.Posv.Gap) {
+			err := bc.UpdateM1()
+			if err != nil {
+				if err == ErrNotPoSV {
+					log.Error("Stopping node", "err", err)
+					os.Exit(1)
+				} else {
+					log.Error("Error when update masternodes set. Keep the current masternodes set for the next epoch.", "err", err)
+				}
+			}
+		}
+	}
+	// Append a single chain head event if we've progressed the chain
+	if lastCanon != nil && bc.CurrentBlock().Hash() == lastCanon.Hash() {
+		events = append(events, ChainHeadEvent{lastCanon})
+	}
+	return events, coalescedLogs, nil
 }
 
 // insertStats tracks and reports on block insertion.

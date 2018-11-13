@@ -19,6 +19,7 @@ package fetcher
 
 import (
 	"errors"
+	"github.com/hashicorp/golang-lru"
 	"math/rand"
 	"time"
 
@@ -62,7 +63,7 @@ type blockBroadcasterFn func(block *types.Block, propagate bool)
 type chainHeightFn func() uint64
 
 // chainInsertFn is a callback type to insert a batch of blocks into the local chain.
-type chainInsertFn func(types.Blocks) (int, error)
+type chainInsertFn func(block *types.Block) error
 
 // peerDropFn is a callback type for dropping a peer detected as malicious.
 type peerDropFn func(id string)
@@ -128,7 +129,7 @@ type Fetcher struct {
 	queue  *prque.Prque            // Queue containing the import operations (block number sorted)
 	queues map[string]int          // Per peer block counts to prevent memory exhaustion
 	queued map[common.Hash]*inject // Set of already queued blocks (to dedup imports)
-
+	known  *lru.ARCCache
 	// Callbacks
 	getBlock       blockRetrievalFn   // Retrieves a block from the local chain
 	verifyHeader   headerVerifierFn   // Checks if a block's headers have a valid proof of work
@@ -148,6 +149,7 @@ type Fetcher struct {
 
 // New creates a block fetcher to retrieve blocks based on hash announcements.
 func New(getBlock blockRetrievalFn, verifyHeader headerVerifierFn, broadcastBlock blockBroadcasterFn, chainHeight chainHeightFn, insertChain chainInsertFn, dropPeer peerDropFn) *Fetcher {
+	knownBlocks, _ := lru.NewARC(blockLimit)
 	return &Fetcher{
 		notify:         make(chan *announce),
 		inject:         make(chan *inject),
@@ -164,6 +166,7 @@ func New(getBlock blockRetrievalFn, verifyHeader headerVerifierFn, broadcastBloc
 		queue:          prque.New(),
 		queues:         make(map[string]int),
 		queued:         make(map[common.Hash]*inject),
+		known:          knownBlocks,
 		getBlock:       getBlock,
 		verifyHeader:   verifyHeader,
 		broadcastBlock: broadcastBlock,
@@ -601,7 +604,10 @@ func (f *Fetcher) rescheduleComplete(complete *time.Timer) {
 // has not yet been seen.
 func (f *Fetcher) enqueue(peer string, block *types.Block) {
 	hash := block.Hash()
-
+	if f.known.Contains(hash) {
+		log.Debug("Discarded propagated block, known block", "peer", peer, "number", block.Number(), "hash", hash, "limit", blockLimit)
+		return
+	}
 	// Ensure the peer isn't DOSing us
 	count := f.queues[peer] + 1
 	if count > blockLimit {
@@ -625,6 +631,7 @@ func (f *Fetcher) enqueue(peer string, block *types.Block) {
 		}
 		f.queues[peer] = count
 		f.queued[hash] = op
+		f.known.Add(hash, true)
 		f.queue.Push(op, -float32(block.NumberU64()))
 		if f.queueChangeHook != nil {
 			f.queueChangeHook(op.block.Hash(), true)
@@ -660,7 +667,7 @@ func (f *Fetcher) insert(peer string, block *types.Block) {
 		case consensus.ErrFutureBlock:
 			delay := time.Unix(block.Time().Int64(), 0).Sub(time.Now()) // nolint: gosimple
 			time.Sleep(delay)
-			log.Info("Receive futrue block", "number", block.NumberU64(), "hash", block.Hash().Hex(), "delay", delay)
+			log.Info("Receive future block", "number", block.NumberU64(), "hash", block.Hash().Hex(), "delay", delay)
 			goto again
 		case consensus.ErrMissingValidatorSignature:
 			newBlock := block
@@ -674,8 +681,6 @@ func (f *Fetcher) insert(peer string, block *types.Block) {
 				go f.broadcastBlock(block, true)
 				return
 			}
-			f.Enqueue(peer, newBlock)
-			return
 		default:
 			// Something went very wrong, drop the peer
 			log.Debug("Propagated block verification failed", "peer", peer, "number", block.Number(), "hash", hash, "err", err)
@@ -684,7 +689,7 @@ func (f *Fetcher) insert(peer string, block *types.Block) {
 		}
 
 		// Run the actual import and log any issues
-		if _, err := f.insertChain(types.Blocks{block}); err != nil {
+		if err := f.insertChain(block); err != nil {
 			log.Debug("Propagated block import failed", "peer", peer, "number", block.Number(), "hash", hash, "err", err)
 			return
 		}
@@ -695,11 +700,10 @@ func (f *Fetcher) insert(peer string, block *types.Block) {
 				return
 			}
 		}
-
 		// If import succeeded, broadcast the block
 		propAnnounceOutTimer.UpdateSince(block.ReceivedAt)
+		go f.broadcastBlock(block, true)
 		go f.broadcastBlock(block, false)
-
 	}()
 }
 
