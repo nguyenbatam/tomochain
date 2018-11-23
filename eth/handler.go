@@ -168,16 +168,26 @@ func NewProtocolManager(config *params.ChainConfig, mode downloader.SyncMode, ne
 	heighter := func() uint64 {
 		return blockchain.CurrentBlock().NumberU64()
 	}
-	inserter := func(blocks types.Blocks) (int, error) {
+	inserter := func(block *types.Block) error {
 		// If fast sync is running, deny importing weird blocks
 		if atomic.LoadUint32(&manager.fastSync) == 1 {
-			log.Warn("Discarded bad propagated block", "number", blocks[0].Number(), "hash", blocks[0].Hash())
-			return 0, nil
+			log.Warn("Discarded bad propagated block", "number", block.Number(), "hash", block.Hash())
+			return nil
 		}
 		atomic.StoreUint32(&manager.acceptTxs, 1) // Mark initial sync done on any fetcher import
-		return manager.blockchain.InsertChain(blocks)
+		return manager.blockchain.InsertBlock(block)
 	}
-	manager.fetcher = fetcher.New(blockchain.GetBlockByHash, validator, manager.BroadcastBlock, heighter, inserter, manager.removePeer)
+
+	prepare := func(block *types.Block) error {
+		// If fast sync is running, deny importing weird blocks
+		if atomic.LoadUint32(&manager.fastSync) == 1 {
+			log.Warn("Discarded bad propagated block", "number", block.Number(), "hash", block.Hash())
+			return nil
+		}
+		atomic.StoreUint32(&manager.acceptTxs, 1) // Mark initial sync done on any fetcher import
+		return manager.blockchain.PrepareBlock(block)
+	}
+	manager.fetcher = fetcher.New(blockchain.GetBlockByHash, validator, manager.BroadcastBlock, heighter, inserter, prepare, manager.removePeer)
 
 	return manager, nil
 }
@@ -651,17 +661,14 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 			trueTD   = new(big.Int).Sub(request.TD, request.Block.Difficulty())
 		)
 		// Update the peers total difficulty if better than the previous
-		_, td := p.Head()
-		currentBlock := pm.blockchain.CurrentBlock()
-		currentTd := pm.blockchain.GetTd(currentBlock.Hash(), currentBlock.NumberU64())
-		log.Debug("NewBlockMsg", "p", p, "number", request.Block.NumberU64(), "trueTD", trueTD, "td", td, "currentTd", currentTd)
-		if trueTD.Cmp(td) > 0 {
+		if _, td := p.Head(); trueTD.Cmp(td) > 0 {
 			p.SetHead(trueHead, trueTD)
-
 			// Schedule a sync if above ours. Note, this will not fire a sync for a gap of
 			// a singe block (as the true TD is below the propagated block), however this
 			// scenario should easily be covered by the fetcher.
-			if trueTD.Cmp(currentTd) > 0 {
+			currentBlock := pm.blockchain.CurrentBlock()
+			currentTd := pm.blockchain.GetTd(currentBlock.Hash(), currentBlock.NumberU64())
+			if trueTD.Sub(trueTD, currentTd).Uint64() > 1 {
 				go pm.synchronise(p)
 			}
 		}
@@ -709,18 +716,24 @@ func (pm *ProtocolManager) BroadcastBlock(block *types.Block, propagate bool) {
 		}
 		// Send the block to a subset of our peers
 		for _, peer := range peers {
-			peer.SendNewBlock(block, td)
+			err := peer.SendNewBlock(block, td)
+			if err != nil {
+				log.Debug("Broad cast new block", "number", block.NumberU64(), "hash", hash, "td", td, "peer", peer, "err", err)
+			}
 		}
-		log.Trace("Propagated block", "hash", hash, "recipients", len(peers), "duration", common.PrettyDuration(time.Since(block.ReceivedAt)))
+		log.Debug("Propagated block", "hash", hash, "td", td, "recipients", len(peers), "duration", common.PrettyDuration(time.Since(block.ReceivedAt)))
 		return
 	}
-	// Otherwise if the block is indeed in out own chain, announce it
-	if pm.blockchain.HasBlock(hash, block.NumberU64()) {
-		for _, peer := range peers {
-			peer.SendNewBlockHashes([]common.Hash{hash}, []uint64{block.NumberU64()})
-		}
-		log.Trace("Announced block", "hash", hash, "recipients", len(peers), "duration", common.PrettyDuration(time.Since(block.ReceivedAt)))
-	}
+	//// Otherwise if the block is indeed in out own chain, announce it
+	//if pm.blockchain.HasBlock(hash, block.NumberU64()) {
+	//	for _, peer := range peers {
+	//		err := peer.SendNewBlockHashes([]common.Hash{hash}, []uint64{block.NumberU64()})
+	//		if err != nil {
+	//			log.Debug("Broad cast block hash", "number", block.NumberU64(), "hash", hash, "peer", peer, "err", err)
+	//		}
+	//	}
+	//	log.Trace("Announced block", "hash", hash, "recipients", len(peers), "duration", common.PrettyDuration(time.Since(block.ReceivedAt)))
+	//}
 }
 
 // BroadcastTx will propagate a transaction to all peers which are not known to
@@ -732,7 +745,7 @@ func (pm *ProtocolManager) BroadcastTx(hash common.Hash, tx *types.Transaction) 
 	for _, peer := range peers {
 		peer.SendTransactions(types.Transactions{tx})
 	}
-	log.Trace("Broadcast transaction", "hash", hash, "recipients", len(peers))
+	log.Trace("Broadcast transaction", "hash", hash, "recipients", len(peers), "to", tx.To())
 }
 
 func (pm *ProtocolManager) BroadcastSpecialTx(hash common.Hash, tx *types.Transaction) {
@@ -765,6 +778,7 @@ func (self *ProtocolManager) txBroadcastLoop() {
 
 			// Err() channel will be closed when unsubscribing.
 		case <-self.txSub.Err():
+			log.Debug("Close Broadcast Tx")
 			return
 		}
 	}

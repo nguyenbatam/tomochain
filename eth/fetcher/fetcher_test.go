@@ -123,7 +123,7 @@ func (f *fetcherTester) chainHeight() uint64 {
 	return f.blocks[f.hashes[len(f.hashes)-1]].NumberU64()
 }
 
-// insertChain injects a new blocks into the simulated chain.
+// insertBlock injects a new blocks into the simulated chain.
 func (f *fetcherTester) insertChain(blocks types.Blocks) (int, error) {
 	f.lock.Lock()
 	defer f.lock.Unlock()
@@ -512,7 +512,7 @@ func testImportDeduplication(t *testing.T, protocol int) {
 	bodyFetcher := tester.makeBodyFetcher("valid", blocks, 0)
 
 	counter := uint32(0)
-	tester.fetcher.insertChain = func(blocks types.Blocks) (int, error) {
+	tester.fetcher.insertBlock = func(blocks types.Blocks) (int, error) {
 		atomic.AddUint32(&counter, uint32(len(blocks)))
 		return tester.insertChain(blocks)
 	}

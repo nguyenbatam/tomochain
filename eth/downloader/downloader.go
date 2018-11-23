@@ -344,6 +344,7 @@ func (d *Downloader) synchronise(id string, hash common.Hash, td *big.Int, mode 
 	if d.synchroniseMock != nil {
 		return d.synchroniseMock(id, hash)
 	}
+	log.Debug("ProtocolManager synchronise", "id", id, "pTd", td, "mode", mode, "synchronising", d.synchronising)
 	// Make sure only one goroutine is ever allowed past this point at once
 	if !atomic.CompareAndSwapInt32(&d.synchronising, 0, 1) {
 		return errBusy
@@ -757,7 +758,7 @@ func (d *Downloader) findAncestor(p *peerConnection, height uint64) (uint64, err
 // the origin is dropped.
 func (d *Downloader) fetchHeaders(p *peerConnection, from uint64, pivot uint64) error {
 	p.log.Debug("Directing header downloads", "origin", from)
-	defer p.log.Debug("Header download terminated")
+	defer p.log.Debug("Header download terminated", "end", from)
 
 	// Create a timeout timer, and the associated header fetcher
 	skeleton := true            // Skeleton assembly phase or finishing up
@@ -1152,6 +1153,7 @@ func (d *Downloader) fetchParts(errCancel error, deliveryCh chan dataPack, deliv
 // keeps processing and scheduling them into the header chain and downloader's
 // queue until the stream ends or a failure occurs.
 func (d *Downloader) processHeaders(origin uint64, pivot uint64, td *big.Int) error {
+	defer log.Debug("ProcessHeaders terminated !", "td", td)
 	// Keep a count of uncertain headers to roll back
 	rollback := []*types.Header{}
 	defer func() {
@@ -1318,7 +1320,9 @@ func (d *Downloader) processHeaders(origin uint64, pivot uint64, td *big.Int) er
 
 // processFullSyncContent takes fetch results from the queue and imports them into the chain.
 func (d *Downloader) processFullSyncContent() error {
+	defer log.Debug("Process Full Sync Content terminated")
 	for {
+		log.Debug("Start wait get list downloaded from queue")
 		results := d.queue.Results(true)
 		if len(results) == 0 {
 			return nil

@@ -301,8 +301,8 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 			if foudationWalletAddr == (common.Address{}) {
 				log.Error("Foundation Wallet Address is empty", "error", foudationWalletAddr)
 			}
-			start := time.Now()
 			if number > 0 && number-rCheckpoint > 0 && foudationWalletAddr != (common.Address{}) {
+				start := time.Now()
 				// Get signers in blockSigner smartcontract.
 				addr := common.HexToAddress(common.BlockSigners)
 				// Get reward inflation.
@@ -334,8 +334,8 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 						}
 					}
 				}
+				log.Debug("Time Calculated HookReward ", "block", header.Number.Uint64(), "time", common.PrettyDuration(time.Since(start)))
 			}
-			log.Debug("Time Calculated HookReward ", "block", header.Number.Uint64(), "time", common.PrettyDuration(time.Since(start)))
 			return nil
 		}
 

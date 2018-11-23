@@ -246,7 +246,7 @@ func (self *worker) unregister(agent Agent) {
 }
 
 func (self *worker) update() {
-	defer self.txSub.Unsubscribe()
+	//defer self.txSub.Unsubscribe()
 	defer self.chainHeadSub.Unsubscribe()
 	defer self.chainSideSub.Unsubscribe()
 
@@ -254,8 +254,9 @@ func (self *worker) update() {
 		// A real event arrived, process interesting content
 		select {
 		// Handle ChainHeadEvent
-		case <-self.chainHeadCh:
+		case ev := <-self.chainHeadCh:
 			self.commitNewWork()
+			log.Debug("Finish receive Chain Head Event miner", "number", ev.Block.NumberU64(), "hash", ev.Block.Hash())
 
 			// Handle ChainSideEvent
 		case ev := <-self.chainSideCh:
@@ -280,9 +281,9 @@ func (self *worker) update() {
 					self.commitNewWork()
 				}
 			}
-			// System stopped
+			//System stopped
 		case <-self.txSub.Err():
-			return
+			//	return
 		case <-self.chainHeadSub.Err():
 			return
 		case <-self.chainSideSub.Err():
@@ -464,6 +465,9 @@ func (self *worker) commitNewWork() {
 	tstart := time.Now()
 	parent := self.chain.CurrentBlock()
 
+	//if atomic.LoadInt32(&self.mining) == 0 {
+	//	return
+	//}
 	// Only try to commit new work if we are mining
 	if atomic.LoadInt32(&self.mining) == 1 {
 		// check if we are right after parent's coinbase in the list
@@ -495,15 +499,13 @@ func (self *worker) commitNewWork() {
 				}
 				h := hop(len(masternodes), preIndex, curIndex)
 				gap := waitPeriod * int64(h)
-				log.Info("Distance from the parent block", "seconds", gap, "hops", h)
+				log.Info("Distance from the parent block", "seconds", gap, "hops", h, "GetGID", log.GetGID())
 			L:
 				select {
 				case newBlock := <-self.chainHeadCh:
+					log.Info("New block has came already. Skip this turn", "new block", newBlock.Block.NumberU64(), "current block", parent.NumberU64())
 					self.chainHeadCh <- newBlock
-					if newBlock.Block.NumberU64() > parent.NumberU64() {
-						log.Info("New block has came already. Skip this turn", "new block", newBlock.Block.NumberU64(), "current block", parent.NumberU64())
-						return
-					}
+					return
 				case <-time.After(time.Duration(gap) * time.Second):
 					// wait enough. It's my turn
 					log.Info("Wait enough. It's my turn", "waited seconds", gap)
@@ -512,7 +514,6 @@ func (self *worker) commitNewWork() {
 			}
 		}
 	}
-
 	tstamp := tstart.Unix()
 	if parent.Time().Cmp(new(big.Int).SetInt64(tstamp)) >= 0 {
 		tstamp = parent.Time().Int64() + 1

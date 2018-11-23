@@ -297,6 +297,7 @@ func (pool *TxPool) loop() {
 				head = ev.Block
 
 				pool.mu.Unlock()
+				log.Debug("Finish receive Chain Head Event Txpool","number",ev.Block.NumberU64(),"hash",ev.Block.Hash())
 			}
 			// Be unsubscribed due to system stopped
 		case <-pool.chainHeadSub.Err():
@@ -652,6 +653,7 @@ func (pool *TxPool) add(tx *types.Transaction, local bool) (bool, error) {
 	}
 	// If the transaction pool is full, discard underpriced transactions
 	if uint64(len(pool.all)) >= pool.config.GlobalSlots+pool.config.GlobalQueue {
+		log.Debug("Add transaction to pool full", "hash", hash, "nonce", tx.Nonce())
 		// If the new transaction is underpriced, don't accept it
 		if pool.priced.Underpriced(tx, pool.locals) {
 			log.Trace("Discarding underpriced transaction", "hash", hash, "price", tx.GasPrice())
@@ -884,9 +886,6 @@ func (pool *TxPool) addTx(tx *types.Transaction, local bool) error {
 
 // addTxs attempts to queue a batch of transactions if they are valid.
 func (pool *TxPool) addTxs(txs []*types.Transaction, local bool) []error {
-	for _, tx := range txs {
-		types.CacheSigner(pool.signer, tx)
-	}
 	pool.mu.Lock()
 	defer pool.mu.Unlock()
 
@@ -1051,6 +1050,7 @@ func (pool *TxPool) promoteExecutables(accounts []common.Address) {
 		pending += uint64(list.Len())
 	}
 	if pending > pool.config.GlobalSlots {
+		log.Debug("Try Add transaction to pool full", "pending", pending, "GlobalSlots", pool.config.GlobalSlots)
 		pendingBeforeCap := pending
 		// Assemble a spam order to penalize large transactors first
 		spammers := prque.New()
@@ -1122,6 +1122,7 @@ func (pool *TxPool) promoteExecutables(accounts []common.Address) {
 		queued += uint64(list.Len())
 	}
 	if queued > pool.config.GlobalQueue {
+		log.Debug("Try Add transaction to pool full", "queued", queued, "GlobalQueue", pool.config.GlobalQueue)
 		// Sort all accounts with queued transactions by heartbeat
 		addresses := make(addresssByHeartbeat, 0, len(pool.queue))
 		for addr := range pool.queue {
