@@ -82,8 +82,6 @@ type ProtocolManager struct {
 	eventMux      *event.TypeMux
 	txCh          chan core.TxPreEvent
 	txSub         event.Subscription
-	specialTxCh   chan core.TxPreEvent
-	specialTxSub  event.Subscription
 	minedBlockSub *event.TypeMuxSubscription
 
 	// channels for fetcher, syncer, txsyncLoop
@@ -209,11 +207,6 @@ func (pm *ProtocolManager) Start(maxPeers int) {
 	pm.txSub = pm.txpool.SubscribeTxPreEvent(pm.txCh)
 	go pm.txBroadcastLoop()
 
-	// broadcast special transactions
-	pm.specialTxCh = make(chan core.TxPreEvent, txChanSize)
-	pm.specialTxSub = pm.txpool.SubscribeSpecialTxPreEvent(pm.specialTxCh)
-	go pm.specialTxBroadcastLoop()
-
 	// broadcast mined blocks
 	pm.minedBlockSub = pm.eventMux.Subscribe(core.NewMinedBlockEvent{})
 	go pm.minedBroadcastLoop()
@@ -227,7 +220,6 @@ func (pm *ProtocolManager) Stop() {
 	log.Info("Stopping Ethereum protocol")
 
 	pm.txSub.Unsubscribe()         // quits txBroadcastLoop
-	pm.specialTxSub.Unsubscribe()  // quits specialTxBroadcastLoop
 	pm.minedBlockSub.Unsubscribe() // quits blockBroadcastLoop
 
 	// Quit the sync loop.
@@ -693,34 +685,24 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 
 // BroadcastBlock will either propagate a block to a subset of it's peers, or
 // will only announce it's availability (depending what's requested).
-func (pm *ProtocolManager) BroadcastBlock(block *types.Block, propagate bool) {
+func (pm *ProtocolManager) BroadcastBlock(block *types.Block) {
 	hash := block.Hash()
 	peers := pm.peers.PeersWithoutBlock(hash)
 
 	// If propagation is requested, send to a subset of the peer
-	if propagate {
-		// Calculate the TD of the block (it's not imported yet, so block.Td is not valid)
-		var td *big.Int
-		if parent := pm.blockchain.GetBlock(block.ParentHash(), block.NumberU64()-1); parent != nil {
-			td = new(big.Int).Add(block.Difficulty(), pm.blockchain.GetTd(block.ParentHash(), block.NumberU64()-1))
-		} else {
-			log.Error("Propagating dangling block", "number", block.Number(), "hash", hash)
-			return
-		}
-		// Send the block to a subset of our peers
-		for _, peer := range peers {
-			peer.SendNewBlock(block, td)
-		}
-		log.Trace("Propagated block", "hash", hash, "recipients", len(peers), "duration", common.PrettyDuration(time.Since(block.ReceivedAt)))
+	// Calculate the TD of the block (it's not imported yet, so block.Td is not valid)
+	var td *big.Int
+	if parent := pm.blockchain.GetBlock(block.ParentHash(), block.NumberU64()-1); parent != nil {
+		td = new(big.Int).Add(block.Difficulty(), pm.blockchain.GetTd(block.ParentHash(), block.NumberU64()-1))
+	} else {
+		log.Error("Propagating dangling block", "number", block.Number(), "hash", hash)
 		return
 	}
-	// Otherwise if the block is indeed in out own chain, announce it
-	if pm.blockchain.HasBlock(hash, block.NumberU64()) {
-		for _, peer := range peers {
-			peer.SendNewBlockHashes([]common.Hash{hash}, []uint64{block.NumberU64()})
-		}
-		log.Trace("Announced block", "hash", hash, "recipients", len(peers), "duration", common.PrettyDuration(time.Since(block.ReceivedAt)))
+	// Send the block to a subset of our peers
+	for _, peer := range peers {
+		peer.SendNewBlock(block, td)
 	}
+	log.Trace("Propagated block", "hash", hash, "recipients", len(peers), "duration", common.PrettyDuration(time.Since(block.ReceivedAt)))
 }
 
 // BroadcastTx will propagate a transaction to all peers which are not known to
@@ -735,24 +717,13 @@ func (pm *ProtocolManager) BroadcastTx(hash common.Hash, tx *types.Transaction) 
 	log.Trace("Broadcast transaction", "hash", hash, "recipients", len(peers))
 }
 
-func (pm *ProtocolManager) BroadcastSpecialTx(hash common.Hash, tx *types.Transaction) {
-	// Broadcast transaction to a batch of peers not knowing about it
-	peers := pm.peers.PeersWithoutTx(hash)
-	//FIXME include this again: peers = peers[:int(math.Sqrt(float64(len(peers))))]
-	for _, peer := range peers {
-		peer.SendSpecialTransactions(tx)
-	}
-	log.Trace("Broadcast special transaction", "hash", hash, "recipients", len(peers))
-}
-
 // Mined broadcast loop
 func (self *ProtocolManager) minedBroadcastLoop() {
 	// automatically stops if unsubscribe
 	for obj := range self.minedBlockSub.Chan() {
 		switch ev := obj.Data.(type) {
 		case core.NewMinedBlockEvent:
-			self.BroadcastBlock(ev.Block, true)  // First propagate block to peers
-			self.BroadcastBlock(ev.Block, false) // Only then announce to the rest
+			self.BroadcastBlock(ev.Block)
 		}
 	}
 }
@@ -765,19 +736,6 @@ func (self *ProtocolManager) txBroadcastLoop() {
 
 			// Err() channel will be closed when unsubscribing.
 		case <-self.txSub.Err():
-			return
-		}
-	}
-}
-
-func (self *ProtocolManager) specialTxBroadcastLoop() {
-	for {
-		select {
-		case event := <-self.specialTxCh:
-			self.BroadcastSpecialTx(event.Tx.Hash(), event.Tx)
-
-			// Err() channel will be closed when unsubscribing.
-		case <-self.specialTxSub.Err():
 			return
 		}
 	}
