@@ -57,7 +57,7 @@ type bodyRequesterFn func([]common.Hash) error
 type headerVerifierFn func(header *types.Header) error
 
 // blockBroadcasterFn is a callback type for broadcasting a block to connected peers.
-type blockBroadcasterFn func(block *types.Block, propagate bool)
+type blockBroadcasterFn func(block *types.Block)
 
 // chainHeightFn is a callback type to retrieve the current chain height.
 type chainHeightFn func() uint64
@@ -663,7 +663,7 @@ func (f *Fetcher) insert(peer string, block *types.Block) {
 		case nil:
 			// All ok, quickly propagate to our peers
 			propBroadcastOutTimer.UpdateSince(block.ReceivedAt)
-			go f.broadcastBlock(block, true)
+			go f.broadcastBlock(block)
 		case consensus.ErrFutureBlock:
 			delay := time.Unix(block.Time().Int64(), 0).Sub(time.Now()) // nolint: gosimple
 			time.Sleep(delay)
@@ -678,7 +678,7 @@ func (f *Fetcher) insert(peer string, block *types.Block) {
 				}
 			}
 			if newBlock.Hash() == block.Hash() {
-				go f.broadcastBlock(block, true)
+				go f.broadcastBlock(block)
 				return
 			}
 			block = newBlock
@@ -703,8 +703,7 @@ func (f *Fetcher) insert(peer string, block *types.Block) {
 		}
 		// If import succeeded, broadcast the block
 		propAnnounceOutTimer.UpdateSince(block.ReceivedAt)
-		go f.broadcastBlock(block, true)
-		//go f.broadcastBlock(block, false)
+		go f.broadcastBlock(block)
 	}()
 }
 
