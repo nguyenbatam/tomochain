@@ -128,7 +128,7 @@ type BlockChain struct {
 	blockCache       *lru.Cache     // Cache for the most recent entire blocks
 	futureBlocks     *lru.Cache     // future blocks are blocks added for later processing
 	resultProcess    *lru.Cache
-	preparingBlock   *lru.Cache
+	calculatingBlock *lru.Cache
 	downloadingBlock *lru.Cache
 	quit             chan struct{} // blockchain quit channel
 	running          int32         // running must be called atomically
@@ -176,7 +176,7 @@ func NewBlockChain(db ethdb.Database, cacheConfig *CacheConfig, chainConfig *par
 		blockCache:       blockCache,
 		futureBlocks:     futureBlocks,
 		resultProcess:    resultProcess,
-		preparingBlock:   preparingBlock,
+		calculatingBlock: preparingBlock,
 		downloadingBlock: downloadingBlock,
 		engine:           engine,
 		vmConfig:         vmConfig,
@@ -1239,8 +1239,8 @@ func (bc *BlockChain) PrepareBlock(block *types.Block) (err error) {
 		log.Debug("Stop prepare a block becasue having result", "number", block.NumberU64(), "hash", block.Hash(), "validator", block.Header().Validator)
 		return nil
 	}
-	if _, check := bc.preparingBlock.Get(block.Hash()); check {
-		log.Debug("Stop prepare a block becasue preparing", "number", block.NumberU64(), "hash", block.Hash(), "validator", block.Header().Validator)
+	if _, check := bc.calculatingBlock.Get(block.Hash()); check {
+		log.Debug("Stop prepare a block becasue calculating", "number", block.NumberU64(), "hash", block.Hash(), "validator", block.Header().Validator)
 		return nil
 	}
 	if bc.GetBlockByHash(block.Hash()) != nil {
@@ -1271,16 +1271,12 @@ func (bc *BlockChain) getResultBlock(block *types.Block, verifiedM2 bool) (*Resu
 			return result.(*ResultProcessBlock), nil
 		}
 		log.Debug("Not found cache prepare block ", "number", block.NumberU64(), "hash", block.Hash(), "validator", block.Header().HashNoValidator())
-		if calculatedBlock, _ := bc.preparingBlock.Get(block.Header().HashNoValidator()); calculatedBlock != nil {
+		if calculatedBlock, _ := bc.calculatingBlock.Get(block.Header().HashNoValidator()); calculatedBlock != nil {
 			calculatedBlock.(*CalculatedBlock).stop = true
 		}
 	}
-
-
-
-	
 	calculatedBlock = &CalculatedBlock{block, false}
-	bc.preparingBlock.Add(block.Header().HashNoValidator(), calculatedBlock)
+	bc.calculatingBlock.Add(block.Header().HashNoValidator(), calculatedBlock)
 	// Start the parallel header verifier
 	// If the chain is terminating, stop processing blocks
 	if atomic.LoadInt32(&bc.procInterrupt) == 1 {
@@ -1340,7 +1336,7 @@ func (bc *BlockChain) getResultBlock(block *types.Block, verifiedM2 bool) (*Resu
 		return nil, err
 	}
 	// Process block using the parent state as reference point.
-	receipts, logs, usedGas, err := bc.processor.Process(block, state, bc.vmConfig)
+	receipts, logs, usedGas, err := bc.processor.Process(calculatedBlock, state, bc.vmConfig)
 	process := time.Since(bstart)
 	if err != nil {
 		bc.reportBlock(block, receipts, err)
