@@ -1275,6 +1275,10 @@ func (bc *BlockChain) getResultBlock(block *types.Block, verifiedM2 bool) (*Resu
 			calculatedBlock.(*CalculatedBlock).stop = true
 		}
 	}
+
+
+
+	
 	calculatedBlock = &CalculatedBlock{block, false}
 	bc.preparingBlock.Add(block.Header().HashNoValidator(), calculatedBlock)
 	// Start the parallel header verifier
