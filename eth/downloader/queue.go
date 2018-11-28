@@ -146,9 +146,7 @@ func (q *queue) Reset() {
 // Close marks the end of the sync, unblocking WaitResults.
 // It may be called even if the queue is already closed.
 func (q *queue) Close() {
-	q.lock.Lock()
 	q.closed = true
-	q.lock.Unlock()
 	q.active.Broadcast()
 }
 
@@ -350,12 +348,14 @@ func (q *queue) Schedule(headers []*types.Header, from uint64) []*types.Header {
 // Results retrieves and permanently removes a batch of fetch results from
 // the cache. the result slice will be empty if the queue has been closed.
 func (q *queue) Results(block bool) []*fetchResult {
+	log.Debug("Start wait results")
 	q.lock.Lock()
 	defer q.lock.Unlock()
 
 	// Count the number of items available for processing
 	nproc := q.countProcessableItems()
 	for nproc == 0 && !q.closed {
+		log.Debug("Start wait countProcessableItems", "nproc", nproc, "closed", q.closed)
 		if !block {
 			return nil
 		}

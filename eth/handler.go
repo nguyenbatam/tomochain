@@ -477,6 +477,9 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 			headers = pm.fetcher.FilterHeaders(p.id, headers, time.Now())
 		}
 		if len(headers) > 0 || !filter {
+			if len(headers) > 0 {
+				log.Debug("synchronise list headers", "len", len(headers), "from", headers[0].Number.Uint64(), "last", headers[len(headers)-1].Number.Uint64())
+			}
 			err := pm.downloader.DeliverHeaders(p.id, headers)
 			if err != nil {
 				log.Debug("Failed to deliver headers", "err", err)
@@ -530,6 +533,7 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 			trasactions, uncles = pm.fetcher.FilterBodies(p.id, trasactions, uncles, time.Now())
 		}
 		if len(trasactions) > 0 || len(uncles) > 0 || !filter {
+			log.Debug("synchronise list body", "len", len(trasactions))
 			err := pm.downloader.DeliverBodies(p.id, trasactions, uncles)
 			if err != nil {
 				log.Debug("Failed to deliver bodies", "err", err)

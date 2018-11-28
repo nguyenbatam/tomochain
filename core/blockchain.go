@@ -1336,7 +1336,7 @@ func (bc *BlockChain) getResultBlock(block *types.Block, verifiedM2 bool) (*Resu
 		return nil, err
 	}
 	// Process block using the parent state as reference point.
-	receipts, logs, usedGas, err := bc.processor.Process(calculatedBlock, state, bc.vmConfig)
+	receipts, logs, usedGas, err := bc.processor.ProcessBlockNoValidator(calculatedBlock, state, bc.vmConfig)
 	process := time.Since(bstart)
 	if err != nil {
 		bc.reportBlock(block, receipts, err)
