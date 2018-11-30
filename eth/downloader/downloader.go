@@ -469,7 +469,7 @@ func (d *Downloader) syncWithPeer(p *peerConnection, hash common.Hash, td *big.I
 	if d.mode == FastSync {
 		fetchers = append(fetchers, func() error { return d.processFastSyncContent(latest) })
 	} else if d.mode == FullSync {
-		fetchers = append(fetchers, func() error { return d.processFullSyncContent(height) })
+		fetchers = append(fetchers, func() error { return d.processFullSyncContent() })
 	}
 	return d.spawnSync(fetchers)
 }
@@ -1319,7 +1319,7 @@ func (d *Downloader) processHeaders(origin uint64, pivot uint64, td *big.Int) er
 }
 
 // processFullSyncContent takes fetch results from the queue and imports them into the chain.
-func (d *Downloader) processFullSyncContent(height uint64) error {
+func (d *Downloader) processFullSyncContent() error {
 	defer log.Debug("Process Full Sync Content terminated")
 	for {
 		results := d.queue.Results(true)
@@ -1363,9 +1363,6 @@ func (d *Downloader) processFullSyncContent(height uint64) error {
 		}
 		lastNumber := results[len(results)-1].Header.Number.Uint64()
 		log.Debug("Start wait get list downloaded from queue", "last", lastNumber)
-		if lastNumber >= height {
-			return nil
-		}
 	}
 }
 
