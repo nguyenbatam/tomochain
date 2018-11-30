@@ -465,9 +465,26 @@ func (self *worker) commitNewWork() {
 	tstart := time.Now()
 	parent := self.chain.CurrentBlock()
 
-	//if atomic.LoadInt32(&self.mining) == 0 {
-	//	return
-	//}
+	tstamp := tstart.Unix()
+	if parent.Time().Cmp(new(big.Int).SetInt64(tstamp)) >= 0 {
+		tstamp = parent.Time().Int64() + 1
+	}
+	num := parent.Number()
+	header := &types.Header{
+		ParentHash: parent.Hash(),
+		Number:     num.Add(num, common.Big1),
+		GasLimit:   params.TargetGasLimit,
+		Extra:      self.extra,
+		Time:       big.NewInt(tstamp),
+	}
+	err := self.makeCurrent(parent, header)
+	if err != nil {
+		log.Error("Failed to create mining context", "err", err)
+		return
+	}
+	if atomic.LoadInt32(&self.mining) == 0 {
+		return
+	}
 	// Only try to commit new work if we are mining
 	if atomic.LoadInt32(&self.mining) == 1 {
 		// check if we are right after parent's coinbase in the list
@@ -514,24 +531,11 @@ func (self *worker) commitNewWork() {
 			}
 		}
 	}
-	tstamp := tstart.Unix()
-	if parent.Time().Cmp(new(big.Int).SetInt64(tstamp)) >= 0 {
-		tstamp = parent.Time().Int64() + 1
-	}
 	// this will ensure we're not going off too far in the future
 	if now := time.Now().Unix(); tstamp > now+1 {
 		wait := time.Duration(tstamp-now) * time.Second
 		log.Info("Mining too far in the future", "wait", common.PrettyDuration(wait))
 		time.Sleep(wait)
-	}
-
-	num := parent.Number()
-	header := &types.Header{
-		ParentHash: parent.Hash(),
-		Number:     num.Add(num, common.Big1),
-		GasLimit:   params.TargetGasLimit,
-		Extra:      self.extra,
-		Time:       big.NewInt(tstamp),
 	}
 	// Only set the coinbase if we are mining (avoid spurious block rewards)
 	if atomic.LoadInt32(&self.mining) == 1 {
@@ -555,11 +559,7 @@ func (self *worker) commitNewWork() {
 		}
 	}
 	// Could potentially happen if starting to mine in an odd state.
-	err := self.makeCurrent(parent, header)
-	if err != nil {
-		log.Error("Failed to create mining context", "err", err)
-		return
-	}
+
 	// Create the current work task and check any fork transitions needed
 	work := self.current
 	if self.config.DAOForkSupport && self.config.DAOForkBlock != nil && self.config.DAOForkBlock.Cmp(header.Number) == 0 {
