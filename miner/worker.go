@@ -476,6 +476,7 @@ func (self *worker) commitNewWork() {
 		GasLimit:   params.TargetGasLimit,
 		Extra:      self.extra,
 		Time:       big.NewInt(tstamp),
+		Difficulty: big.NewInt(1),
 	}
 	err := self.makeCurrent(parent, header)
 	if err != nil {
