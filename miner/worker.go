@@ -282,6 +282,7 @@ func (self *worker) update() {
 				self.commitNewWork()
 			}
 			timeout.Reset(waitPeriod * time.Second)
+
 			// Handle ChainHeadEvent
 		case <-self.chainHeadCh:
 			self.commitNewWork()
@@ -498,7 +499,6 @@ func (self *worker) commitNewWork() {
 	if !self.commitTxWhenNotMining && atomic.LoadInt32(&self.mining) == 0 {
 		return
 	}
-
 	// Only try to commit new work if we are mining
 	if atomic.LoadInt32(&self.mining) == 1 {
 		// check if we are right after parent's coinbase in the list
