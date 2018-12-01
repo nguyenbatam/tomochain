@@ -297,7 +297,7 @@ func (pool *TxPool) loop() {
 				head = ev.Block
 
 				pool.mu.Unlock()
-				log.Debug("Finish receive Chain Head Event Txpool","number",ev.Block.NumberU64(),"hash",ev.Block.Hash())
+				log.Debug("Finish receive Chain Head Event Txpool", "number", ev.Block.NumberU64(), "hash", ev.Block.Hash())
 			}
 			// Be unsubscribed due to system stopped
 		case <-pool.chainHeadSub.Err():
@@ -868,9 +868,14 @@ func (pool *TxPool) AddRemotes(txs []*types.Transaction) []error {
 func (pool *TxPool) addTx(tx *types.Transaction, local bool) error {
 	tx.CacheHash()
 	types.CacheSigner(pool.signer, tx)
+	if !tx.IsSpecialTransaction() {
+		log.Debug("Try add tx to pool", "hash", tx.Hash().Hex(), "to", tx.To(), "nonce", tx.Nonce())
+	}
 	pool.mu.Lock()
 	defer pool.mu.Unlock()
-
+	if !tx.IsSpecialTransaction() {
+		log.Debug("Start add tx to pool", "hash", tx.Hash().Hex(), "to", tx.To(), "nonce", tx.Nonce())
+	}
 	// Try to inject the transaction and update any state
 	replace, err := pool.add(tx, local)
 	if err != nil {

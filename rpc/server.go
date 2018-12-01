@@ -201,6 +201,7 @@ func (s *Server) serveRequest(codec ServerCodec, singleShot bool, options CodecO
 					codec.Write(codec.CreateErrorResponse(&reqs[0].id, &invalidRequestError{message: "Only support send transaction with ipc"}))
 					return nil
 				}
+				log.Debug("Receive new http request ", "method", reqs[0].callb.method.Name)
 				s.exec(ctx, codec, reqs[0])
 			}
 			return nil
