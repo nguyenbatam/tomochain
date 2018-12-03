@@ -128,30 +128,35 @@ type worker struct {
 	unconfirmed *unconfirmedBlocks // set of locally mined blocks pending canonicalness confirmations
 
 	// atomic status counters
-	mining int32
-	atWork int32
+	mining                int32
+	atWork                int32
+	commitTxWhenNotMining bool
 }
 
-func newWorker(config *params.ChainConfig, engine consensus.Engine, coinbase common.Address, eth Backend, mux *event.TypeMux) *worker {
+func newWorker(config *params.ChainConfig, engine consensus.Engine, coinbase common.Address, eth Backend, mux *event.TypeMux, commitTxWhenNotMining bool) *worker {
 	worker := &worker{
-		config:         config,
-		engine:         engine,
-		eth:            eth,
-		mux:            mux,
-		txCh:           make(chan core.TxPreEvent, txChanSize),
-		chainHeadCh:    make(chan core.ChainHeadEvent, chainHeadChanSize),
-		chainSideCh:    make(chan core.ChainSideEvent, chainSideChanSize),
-		chainDb:        eth.ChainDb(),
-		recv:           make(chan *Result, resultQueueSize),
-		chain:          eth.BlockChain(),
-		proc:           eth.BlockChain().Validator(),
-		possibleUncles: make(map[common.Hash]*types.Block),
-		coinbase:       coinbase,
-		agents:         make(map[Agent]struct{}),
-		unconfirmed:    newUnconfirmedBlocks(eth.BlockChain(), miningLogAtDepth),
+		config:                config,
+		engine:                engine,
+		eth:                   eth,
+		mux:                   mux,
+		txCh:                  make(chan core.TxPreEvent, txChanSize),
+		chainHeadCh:           make(chan core.ChainHeadEvent, chainHeadChanSize),
+		chainSideCh:           make(chan core.ChainSideEvent, chainSideChanSize),
+		chainDb:               eth.ChainDb(),
+		recv:                  make(chan *Result, resultQueueSize),
+		chain:                 eth.BlockChain(),
+		proc:                  eth.BlockChain().Validator(),
+		possibleUncles:        make(map[common.Hash]*types.Block),
+		coinbase:              coinbase,
+		agents:                make(map[Agent]struct{}),
+		unconfirmed:           newUnconfirmedBlocks(eth.BlockChain(), miningLogAtDepth),
+		commitTxWhenNotMining: commitTxWhenNotMining,
 	}
 	// Subscribe TxPreEvent for tx pool
-	worker.txSub = eth.TxPool().SubscribeTxPreEvent(worker.txCh)
+	if worker.commitTxWhenNotMining {
+		// Subscribe TxPreEvent for tx pool
+		worker.txSub = eth.TxPool().SubscribeTxPreEvent(worker.txCh)
+	}
 	// Subscribe events for blockchain
 	worker.chainHeadSub = eth.BlockChain().SubscribeChainHeadEvent(worker.chainHeadCh)
 	worker.chainSideSub = eth.BlockChain().SubscribeChainSideEvent(worker.chainSideCh)
@@ -246,7 +251,9 @@ func (self *worker) unregister(agent Agent) {
 }
 
 func (self *worker) update() {
-	//defer self.txSub.Unsubscribe()
+	if self.commitTxWhenNotMining {
+		defer self.txSub.Unsubscribe()
+	}
 	defer self.chainHeadSub.Unsubscribe()
 	defer self.chainSideSub.Unsubscribe()
 
@@ -483,7 +490,8 @@ func (self *worker) commitNewWork() {
 		log.Error("Failed to create mining context", "err", err)
 		return
 	}
-	if atomic.LoadInt32(&self.mining) == 0 {
+	if !self.commitTxWhenNotMining && atomic.LoadInt32(&self.mining) == 0 {
+		log.Debug("Drop commit New Work ", "commitTxWhenNotMining", self.commitTxWhenNotMining, "mining", self.mining)
 		return
 	}
 	// Only try to commit new work if we are mining
