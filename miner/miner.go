@@ -77,7 +77,6 @@ func New(eth Backend, config *params.ChainConfig, mux *event.TypeMux, engine con
 // and halt your mining operation for as long as the DOS continues.
 func (self *Miner) update() {
 	events := self.mux.Subscribe(downloader.StartEvent{}, downloader.DoneEvent{}, downloader.FailedEvent{})
-out:
 	for ev := range events.Chan() {
 		switch ev.Data.(type) {
 		case downloader.StartEvent:
@@ -96,10 +95,6 @@ out:
 			if shouldStart {
 				self.Start(self.coinbase)
 			}
-			// unsubscribe. we're only interested in this event once
-			events.Unsubscribe()
-			// stop immediately and ignore all further pending events
-			break out
 		}
 	}
 }

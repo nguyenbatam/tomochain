@@ -259,14 +259,20 @@ func (self *worker) update() {
 	}
 	defer self.chainHeadSub.Unsubscribe()
 	defer self.chainSideSub.Unsubscribe()
-
+	timeout := time.NewTimer(waitPeriod * time.Second)
 	for {
 		// A real event arrived, process interesting content
 		select {
 		// Handle ChainHeadEvent
+		case <-timeout.C:
+			if atomic.LoadInt32(&self.mining) == 1 {
+				self.commitNewWork()
+				log.Debug("Try commit new block becasue timeout")
+			}
 		case ev := <-self.chainHeadCh:
 			self.commitNewWork()
 			log.Debug("Finish receive Chain Head Event miner", "number", ev.Block.NumberU64(), "hash", ev.Block.Hash())
+			timeout.Reset(waitPeriod * time.Second)
 
 			// Handle ChainSideEvent
 		case ev := <-self.chainSideCh:
@@ -525,22 +531,11 @@ func (self *worker) commitNewWork() {
 				}
 				h := hop(len(masternodes), preIndex, curIndex)
 				gap := waitPeriod * int64(h)
-				log.Info("Distance from the parent block", "seconds", gap, "hops", h, "GetGID", log.GetGID())
-			L:
-				select {
-				case newBlock := <-self.chainHeadCh:
-					log.Info("New block has came already. Skip this turn", "new block", newBlock.Block.NumberU64(), "current block", parent.NumberU64())
-					self.chainHeadCh <- newBlock
+				waitingTime := time.Now().Unix() - parent.Header().Time.Int64()
+				if gap > waitingTime {
 					return
-				case <-self.stopTurn:
-					self.stopTurn = nil
-					log.Debug("Skip this turn beacause starting download")
-					return
-				case <-time.After(time.Duration(gap) * time.Second):
-					// wait enough. It's my turn
-					log.Info("Wait enough. It's my turn", "waited seconds", gap)
-					break L
 				}
+				log.Debug("Wait enough. It's my turn", "waited seconds", gap)
 			}
 		}
 	}
