@@ -130,30 +130,34 @@ type worker struct {
 	unconfirmed *unconfirmedBlocks // set of locally mined blocks pending canonicalness confirmations
 
 	// atomic status counters
-	mining int32
-	atWork int32
+	mining                int32
+	atWork                int32
+	commitTxWhenNotMining bool
 }
 
-func newWorker(config *params.ChainConfig, engine consensus.Engine, coinbase common.Address, eth Backend, mux *event.TypeMux) *worker {
+func newWorker(config *params.ChainConfig, engine consensus.Engine, coinbase common.Address, eth Backend, mux *event.TypeMux, commitTxWhenNotMining bool) *worker {
 	worker := &worker{
-		config:         config,
-		engine:         engine,
-		eth:            eth,
-		mux:            mux,
-		txCh:           make(chan core.TxPreEvent, txChanSize),
-		chainHeadCh:    make(chan core.ChainHeadEvent, chainHeadChanSize),
-		chainSideCh:    make(chan core.ChainSideEvent, chainSideChanSize),
-		chainDb:        eth.ChainDb(),
-		recv:           make(chan *Result, resultQueueSize),
-		chain:          eth.BlockChain(),
-		proc:           eth.BlockChain().Validator(),
-		possibleUncles: make(map[common.Hash]*types.Block),
-		coinbase:       coinbase,
-		agents:         make(map[Agent]struct{}),
-		unconfirmed:    newUnconfirmedBlocks(eth.BlockChain(), miningLogAtDepth),
+		config:                config,
+		engine:                engine,
+		eth:                   eth,
+		mux:                   mux,
+		txCh:                  make(chan core.TxPreEvent, txChanSize),
+		chainHeadCh:           make(chan core.ChainHeadEvent, chainHeadChanSize),
+		chainSideCh:           make(chan core.ChainSideEvent, chainSideChanSize),
+		chainDb:               eth.ChainDb(),
+		recv:                  make(chan *Result, resultQueueSize),
+		chain:                 eth.BlockChain(),
+		proc:                  eth.BlockChain().Validator(),
+		possibleUncles:        make(map[common.Hash]*types.Block),
+		coinbase:              coinbase,
+		agents:                make(map[Agent]struct{}),
+		unconfirmed:           newUnconfirmedBlocks(eth.BlockChain(), miningLogAtDepth),
+		commitTxWhenNotMining: commitTxWhenNotMining,
 	}
-	// Subscribe TxPreEvent for tx pool
-	worker.txSub = eth.TxPool().SubscribeTxPreEvent(worker.txCh)
+	if worker.commitTxWhenNotMining {
+		// Subscribe TxPreEvent for tx pool
+		worker.txSub = eth.TxPool().SubscribeTxPreEvent(worker.txCh)
+	}
 	// Subscribe events for blockchain
 	worker.chainHeadSub = eth.BlockChain().SubscribeChainHeadEvent(worker.chainHeadCh)
 	worker.chainSideSub = eth.BlockChain().SubscribeChainSideEvent(worker.chainSideCh)
@@ -248,16 +252,23 @@ func (self *worker) unregister(agent Agent) {
 }
 
 func (self *worker) update() {
-	defer self.txSub.Unsubscribe()
+	if self.commitTxWhenNotMining {
+		defer self.txSub.Unsubscribe()
+	}
 	defer self.chainHeadSub.Unsubscribe()
 	defer self.chainSideSub.Unsubscribe()
-
+	timeout := time.NewTimer(waitPeriod * time.Second)
 	for {
 		// A real event arrived, process interesting content
 		select {
-		// Handle ChainHeadEvent
+		case <-timeout.C:
+			if atomic.LoadInt32(&self.mining) == 1 {
+				self.commitNewWork()
+			}
+			// Handle ChainHeadEvent
 		case <-self.chainHeadCh:
 			self.commitNewWork()
+			timeout.Reset(waitPeriod * time.Second)
 
 			// Handle ChainSideEvent
 		case ev := <-self.chainSideCh:
@@ -283,8 +294,6 @@ func (self *worker) update() {
 				}
 			}
 			// System stopped
-		case <-self.txSub.Err():
-			return
 		case <-self.chainHeadSub.Err():
 			return
 		case <-self.chainSideSub.Err():
@@ -466,6 +475,9 @@ func (self *worker) commitNewWork() {
 	tstart := time.Now()
 	parent := self.chain.CurrentBlock()
 	var signers map[common.Address]struct{}
+	if !self.commitTxWhenNotMining && atomic.LoadInt32(&self.mining) == 0 {
+		return
+	}
 	// Only try to commit new work if we are mining
 	if atomic.LoadInt32(&self.mining) == 1 {
 		// check if we are right after parent's coinbase in the list
@@ -504,19 +516,11 @@ func (self *worker) commitNewWork() {
 					gap += waitPeriodCheckpoint
 				}
 				log.Info("Distance from the parent block", "seconds", gap, "hops", h)
-			L:
-				select {
-				case newBlock := <-self.chainHeadCh:
-					self.chainHeadCh <- newBlock
-					if newBlock.Block.NumberU64() > parent.NumberU64() {
-						log.Info("New block has came already. Skip this turn", "new block", newBlock.Block.NumberU64(), "current block", parent.NumberU64())
-						return
-					}
-				case <-time.After(time.Duration(gap) * time.Second):
-					// wait enough. It's my turn
-					log.Info("Wait enough. It's my turn", "waited seconds", gap)
-					break L
+				waitedTime := time.Now().Unix() - parent.Header().Time.Int64()
+				if gap > waitedTime {
+					return
 				}
+				log.Info("Wait enough. It's my turn", "waited seconds", waitedTime)
 			}
 		}
 	}
