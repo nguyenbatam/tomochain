@@ -288,9 +288,6 @@ func (self *worker) update() {
 					self.commitNewWork()
 				}
 			}
-			//System stopped
-		case <-self.txSub.Err():
-			//	return
 		case <-self.chainHeadSub.Err():
 			return
 		case <-self.chainSideSub.Err():

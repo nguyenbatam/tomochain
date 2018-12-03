@@ -41,7 +41,7 @@ const (
 	// Connectivity defaults.
 	maxActiveDialTasks     = 16
 	defaultMaxPendingPeers = 50
-	defaultDialRatio       = 2
+	defaultDialRatio       = 3
 
 	// Maximum time allowed for reading a complete message.
 	// This is effectively the amount of time a connection can be idle.
@@ -739,7 +739,7 @@ func (srv *Server) maxDialedConns() int {
 	if r == 0 {
 		r = defaultDialRatio
 	}
-	return srv.MaxPeers / r
+	return srv.MaxPeers * 2 / r
 }
 
 type tempError interface {
