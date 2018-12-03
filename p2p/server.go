@@ -739,7 +739,7 @@ func (srv *Server) maxDialedConns() int {
 	if r == 0 {
 		r = defaultDialRatio
 	}
-	return srv.MaxPeers * 2 / r
+	return srv.MaxPeers / r
 }
 
 type tempError interface {
