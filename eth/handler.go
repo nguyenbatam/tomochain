@@ -359,7 +359,7 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 			return errResp(ErrDecode, "%v: %v", msg, err)
 		}
 		hashMode := query.Origin.Hash != (common.Hash{})
-
+		log.Debug("Receive Msg ", "p", p.id, "code", msg.Code, "hash", query.Origin.Hash.Hex(), "number", query.Origin.Number)
 		// Gather headers until the fetch or network limits is reached
 		var (
 			bytes   common.StorageSize
@@ -436,6 +436,7 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		if err := msg.Decode(&headers); err != nil {
 			return errResp(ErrDecode, "msg %v: %v", msg, err)
 		}
+		log.Debug("Receive Msg ", "p", p.id, "code", msg.Code, "headers", len(headers))
 		// If no headers were received, but we're expending a DAO fork check, maybe it's that
 		if len(headers) == 0 && p.forkDrop != nil {
 			// Possibly an empty reply to the fork header checks, sanity check TDs
@@ -492,6 +493,7 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		if _, err := msgStream.List(); err != nil {
 			return err
 		}
+		log.Debug("Receive Msg ", "p", p.id, "code", msg.Code)
 		// Gather blocks until the fetch or network limits is reached
 		var (
 			hash   common.Hash
@@ -519,6 +521,7 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		if err := msg.Decode(&request); err != nil {
 			return errResp(ErrDecode, "msg %v: %v", msg, err)
 		}
+		log.Debug("Receive Msg ", "p", p.id, "code", msg.Code)
 		// Deliver them all to the downloader for queuing
 		trasactions := make([][]*types.Transaction, len(request))
 		uncles := make([][]*types.Header, len(request))
@@ -584,6 +587,7 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		if _, err := msgStream.List(); err != nil {
 			return err
 		}
+		log.Debug("Receive Msg ", "p", p.id, "code", msg.Code)
 		// Gather state data until the fetch or network limits is reached
 		var (
 			hash     common.Hash
@@ -620,6 +624,7 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		if err := msg.Decode(&receipts); err != nil {
 			return errResp(ErrDecode, "msg %v: %v", msg, err)
 		}
+		log.Debug("Receive Msg ", "p", p.id, "code", msg.Code)
 		// Deliver all to the downloader
 		if err := pm.downloader.DeliverReceipts(p.id, receipts); err != nil {
 			log.Debug("Failed to deliver receipts", "err", err)

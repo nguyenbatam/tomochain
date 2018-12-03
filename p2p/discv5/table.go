@@ -33,8 +33,8 @@ import (
 )
 
 const (
-	alpha      = 3  // Kademlia concurrency factor
-	bucketSize = 16 // Kademlia bucket size
+	alpha      = 3   // Kademlia concurrency factor
+	bucketSize = 200 // Kademlia bucket size
 	hashBits   = len(common.Hash{}) * 8
 	nBuckets   = hashBits + 1 // Number of buckets
 

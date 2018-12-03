@@ -214,7 +214,11 @@ func (p *peer) SendNodeData(data [][]byte) error {
 // SendReceiptsRLP sends a batch of transaction receipts, corresponding to the
 // ones requested from an already RLP encoded format.
 func (p *peer) SendReceiptsRLP(receipts []rlp.RawValue) error {
-	return p2p.Send(p.rw, ReceiptsMsg, receipts)
+	if p.pairRw != nil {
+		return p2p.Send(p.pairRw, ReceiptsMsg, receipts)
+	} else {
+		return p2p.Send(p.rw, ReceiptsMsg, receipts)
+	}
 }
 
 // RequestOneHeader is a wrapper around the header query functions to fetch a
@@ -271,7 +275,11 @@ func (p *peer) RequestNodeData(hashes []common.Hash) error {
 // RequestReceipts fetches a batch of transaction receipts from a remote node.
 func (p *peer) RequestReceipts(hashes []common.Hash) error {
 	p.Log().Debug("Fetching batch of receipts", "count", len(hashes))
-	return p2p.Send(p.rw, GetReceiptsMsg, hashes)
+	if p.pairRw != nil {
+		return p2p.Send(p.pairRw, GetReceiptsMsg, hashes)
+	} else {
+		return p2p.Send(p.rw, GetReceiptsMsg, hashes)
+	}
 }
 
 // Handshake executes the eth protocol handshake, negotiating version number,

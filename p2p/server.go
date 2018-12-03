@@ -41,7 +41,7 @@ const (
 	// Connectivity defaults.
 	maxActiveDialTasks     = 16
 	defaultMaxPendingPeers = 50
-	defaultDialRatio       = 3
+	defaultDialRatio       = 2
 
 	// Maximum time allowed for reading a complete message.
 	// This is effectively the amount of time a connection can be idle.
@@ -647,10 +647,10 @@ running:
 				go srv.runPeer(p)
 				if peers[c.id] != nil {
 					peers[c.id].PairPeer = p
-					srv.log.Debug("Adding p2p pair peer", "name", name, "addr", c.fd.RemoteAddr(), "peers", len(peers)+1)
+					srv.log.Debug("Adding p2p pair peer", "name", name, "id", p.ID(), "addr", c.fd.RemoteAddr(), "peers", len(peers)+1)
 				} else {
 					peers[c.id] = p
-					srv.log.Debug("Adding p2p peer", "name", name, "addr", c.fd.RemoteAddr(), "peers", len(peers)+1)
+					srv.log.Debug("Adding p2p peer", "name", name, "id", p.ID(), "addr", c.fd.RemoteAddr(), "peers", len(peers)+1)
 				}
 				if p.Inbound() {
 					inboundCount++
@@ -710,7 +710,7 @@ func (srv *Server) protoHandshakeChecks(peers map[discover.NodeID]*Peer, inbound
 
 func (srv *Server) encHandshakeChecks(peers map[discover.NodeID]*Peer, inboundCount int, c *conn) error {
 	switch {
-	case !c.is(trustedConn|staticDialedConn) && len(peers) >= srv.MaxPeers:
+	case !c.is(trustedConn | staticDialedConn) && len(peers) >= srv.MaxPeers:
 		return DiscTooManyPeers
 	case !c.is(trustedConn) && c.is(inboundConn) && inboundCount >= srv.maxInboundConns():
 		return DiscTooManyPeers

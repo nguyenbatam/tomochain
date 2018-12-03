@@ -46,11 +46,11 @@ var (
 	MaxStateFetch   = 384 // Amount of node state values to allow fetching per request
 
 	MaxForkAncestry  = 3 * params.EpochDuration // Maximum chain reorganisation
-	rttMinEstimate   = 2 * time.Second          // Minimum round-trip time to target for download requests
-	rttMaxEstimate   = 20 * time.Second         // Maximum rount-trip time to target for download requests
+	rttMinEstimate   = 1 * time.Second          // Minimum round-trip time to target for download requests
+	rttMaxEstimate   = 5 * time.Second          // Maximum rount-trip time to target for download requests
 	rttMinConfidence = 0.1                      // Worse confidence factor in our estimated RTT value
-	ttlScaling       = 3                        // Constant scaling factor for RTT -> TTL conversion
-	ttlLimit         = time.Minute              // Maximum TTL allowance to prevent reaching crazy timeouts
+	ttlScaling       = 1                        // Constant scaling factor for RTT -> TTL conversion
+	ttlLimit         = 3 * time.Second          // Maximum TTL allowance to prevent reaching crazy timeouts
 
 	qosTuningPeers   = 5    // Number of peers to tune based on (best peers)
 	qosConfidenceCap = 10   // Number of peers above which not to modify RTT confidence
@@ -772,6 +772,7 @@ func (d *Downloader) fetchHeaders(p *peerConnection, from uint64, pivot uint64) 
 		request = time.Now()
 
 		ttl = d.requestTTL()
+		p.log.Debug("TTL header downloads", "ttl", ttl)
 		timeout.Reset(ttl)
 
 		if skeleton {
