@@ -131,7 +131,6 @@ type worker struct {
 	mining                int32
 	atWork                int32
 	commitTxWhenNotMining bool
-	stopTurn              chan struct{}
 }
 
 func newWorker(config *params.ChainConfig, engine consensus.Engine, coinbase common.Address, eth Backend, mux *event.TypeMux, commitTxWhenNotMining bool) *worker {
@@ -216,7 +215,6 @@ func (self *worker) start() {
 	defer self.mu.Unlock()
 
 	atomic.StoreInt32(&self.mining, 1)
-	self.stopTurn = make(chan struct{})
 	// spin up agents
 	for agent := range self.agents {
 		agent.Start()
@@ -224,9 +222,6 @@ func (self *worker) start() {
 }
 
 func (self *worker) stop() {
-	if self.stopTurn != nil {
-		close(self.stopTurn)
-	}
 	self.wg.Wait()
 	self.mu.Lock()
 	defer self.mu.Unlock()
