@@ -131,6 +131,7 @@ type worker struct {
 	mining                int32
 	atWork                int32
 	commitTxWhenNotMining bool
+	stopTurn              chan struct{}
 }
 
 func newWorker(config *params.ChainConfig, engine consensus.Engine, coinbase common.Address, eth Backend, mux *event.TypeMux, commitTxWhenNotMining bool) *worker {
@@ -215,7 +216,7 @@ func (self *worker) start() {
 	defer self.mu.Unlock()
 
 	atomic.StoreInt32(&self.mining, 1)
-
+	self.stopTurn = make(chan struct{})
 	// spin up agents
 	for agent := range self.agents {
 		agent.Start()
@@ -223,8 +224,10 @@ func (self *worker) start() {
 }
 
 func (self *worker) stop() {
+	if self.stopTurn != nil {
+		close(self.stopTurn)
+	}
 	self.wg.Wait()
-
 	self.mu.Lock()
 	defer self.mu.Unlock()
 	if atomic.LoadInt32(&self.mining) == 1 {
@@ -528,6 +531,10 @@ func (self *worker) commitNewWork() {
 				case newBlock := <-self.chainHeadCh:
 					log.Info("New block has came already. Skip this turn", "new block", newBlock.Block.NumberU64(), "current block", parent.NumberU64())
 					self.chainHeadCh <- newBlock
+					return
+				case <-self.stopTurn:
+					self.stopTurn = nil
+					log.Debug("Skip this turn beacause starting download")
 					return
 				case <-time.After(time.Duration(gap) * time.Second):
 					// wait enough. It's my turn
