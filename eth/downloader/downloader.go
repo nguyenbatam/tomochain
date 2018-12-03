@@ -403,6 +403,7 @@ func (d *Downloader) synchronise(id string, hash common.Hash, td *big.Int, mode 
 // syncWithPeer starts a block synchronization based on the hash chain from the
 // specified peer and head hash.
 func (d *Downloader) syncWithPeer(p *peerConnection, hash common.Hash, td *big.Int) (err error) {
+	log.Debug("Start wait to begin download")
 	d.mux.Post(StartEvent{})
 	defer func() {
 		// reset on error
