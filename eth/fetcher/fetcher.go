@@ -688,22 +688,24 @@ func (f *Fetcher) insert(peer string, block *types.Block) {
 			}
 			if newBlock.Hash() == block.Hash() {
 				go f.broadcastBlock(block, true)
-				break
+				if err := f.prepareBlock(block); err != nil {
+					log.Debug("Propagated block prepare failed", "peer", peer, "number", block.Number(), "hash", hash, "err", err)
+				}
+				return
+			} else {
+				log.Debug("Append M2 to header block", "numer", block.NumberU64(), "hahs", block.Hash())
+				if err := f.prepareBlock(block); err != nil {
+					log.Debug("Propagated block prepare failed", "peer", peer, "number", block.Number(), "hash", hash, "err", err)
+					return
+				}
+				block = newBlock
+				fastBroadCast = false
+				goto again
 			}
-			block = newBlock
-			log.Debug("Append M2 to header block", "numer", block.NumberU64(), "hahs", block.Hash())
-			fastBroadCast = false
-			goto again
 		default:
 			// Something went very wrong, drop the peer
 			log.Debug("Propagated block verification failed", "peer", peer, "number", block.Number(), "hash", hash, "err", err)
 			f.dropPeer(peer)
-			return
-		}
-		if err == consensus.ErrNoValidatorSignature {
-			if err := f.prepareBlock(block); err != nil {
-				log.Debug("Propagated block prepare failed", "peer", peer, "number", block.Number(), "hash", hash, "err", err)
-			}
 			return
 		}
 		// Run the actual import and log any issues
