@@ -1595,6 +1595,7 @@ func (bc *BlockChain) reorg(oldBlock, newBlock *types.Block) error {
 // posts them into the event feed.
 // TODO: Should not expose PostChainEvents. The chain events should be posted in WriteBlock.
 func (bc *BlockChain) PostChainEvents(events []interface{}, logs []*types.Log) {
+	defer log.Debug("Finish Post Chain Event ", "events", len(events))
 	// post event logs for further processing
 	if logs != nil {
 		bc.logsFeed.Send(logs)

@@ -464,6 +464,7 @@ func hop(len, pre, cur int) int {
 }
 
 func (self *worker) commitNewWork() {
+	defer log.Debug("Finish func commitNewWork")
 	self.mu.Lock()
 	defer self.mu.Unlock()
 	self.uncleMu.Lock()
@@ -473,6 +474,7 @@ func (self *worker) commitNewWork() {
 
 	tstart := time.Now()
 	parent := self.chain.CurrentBlock()
+	log.Debug("Try run commit new work with parent", "number", parent.Number(), "hash", parent.Hash().Hex())
 	var signers map[common.Address]struct{}
 	if !self.commitTxWhenNotMining && atomic.LoadInt32(&self.mining) == 0 {
 		return
