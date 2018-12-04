@@ -1238,13 +1238,13 @@ func (bc *BlockChain) InsertBlock(block *types.Block) error {
 }
 
 func (bc *BlockChain) PrepareBlock(block *types.Block) (err error) {
-	defer log.Debug("Try to Prepare Block ", "number", block.NumberU64(), "hash", block.Hash(), "validator", block.Header().Validator, "err", err)
+	defer log.Debug("Done prepare block ", "number", block.NumberU64(), "hash", block.Hash().Hex(), "validator", block.Header().Validator, "err", err)
 	if _, check := bc.resultProcess.Get(block.Hash()); check {
-		log.Debug("Stop prepare a block because having result", "number", block.NumberU64(), "hash", block.Hash(), "validator", block.Header().Validator)
+		log.Debug("Stop prepare a block because having result", "number", block.NumberU64(), "hash", block.Hash().Hex(), "validator", block.Header().Validator)
 		return nil
 	}
 	if _, check := bc.calculatingBlock.Get(block.Hash()); check {
-		log.Debug("Stop prepare a block because inserting", "number", block.NumberU64(), "hash", block.Hash(), "validator", block.Header().Validator)
+		log.Debug("Stop prepare a block because inserting", "number", block.NumberU64(), "hash", block.Hash().Hex(), "validator", block.Header().Validator)
 		return nil
 	}
 	err = bc.engine.VerifyHeader(bc, block.Header(), false)
@@ -1258,7 +1258,7 @@ func (bc *BlockChain) PrepareBlock(block *types.Block) (err error) {
 	} else if err == ErrKnownBlock {
 		return nil
 	} else if err == ErrStopPreparingBlock {
-		log.Debug("Stop prepare a block because calculating", "number", block.NumberU64(), "hash", block.Hash(), "validator", block.Header().Validator)
+		log.Debug("Stop prepare a block because calculating", "number", block.NumberU64(), "hash", block.Hash().Hex(), "validator", block.Header().Validator)
 		return nil
 	}
 	return err
@@ -1268,10 +1268,10 @@ func (bc *BlockChain) getResultBlock(block *types.Block, verifiedM2 bool) (*Resu
 	var calculatedBlock *CalculatedBlock
 	if verifiedM2 {
 		if result, check := bc.resultProcess.Get(block.HashNoValidator()); check {
-			log.Debug("Get result block from cache ", "number", block.NumberU64(), "hash", block.Hash())
+			log.Debug("Get result block from cache ", "number", block.NumberU64(), "hash", block.Hash().Hex(), "hash no validator", block.HashNoValidator().Hex())
 			return result.(*ResultProcessBlock), nil
 		}
-		log.Debug("Not found cache prepare block ", "number", block.NumberU64(), "hash", block.Hash(), "validator", block.HashNoValidator())
+		log.Debug("Not found cache prepare block ", "number", block.NumberU64(), "hash", block.Hash().Hex(), "validator", block.HashNoValidator())
 		if calculatedBlock, _ := bc.calculatingBlock.Get(block.HashNoValidator()); calculatedBlock != nil {
 			calculatedBlock.(*CalculatedBlock).stop = true
 		}
