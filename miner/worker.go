@@ -133,6 +133,7 @@ type worker struct {
 	mining                int32
 	atWork                int32
 	commitTxWhenNotMining bool
+	lastBlockCommit       uint64
 }
 
 func newWorker(config *params.ChainConfig, engine consensus.Engine, coinbase common.Address, eth Backend, mux *event.TypeMux, commitTxWhenNotMining bool) *worker {
@@ -475,6 +476,9 @@ func (self *worker) commitNewWork() {
 	tstart := time.Now()
 	parent := self.chain.CurrentBlock()
 	log.Debug("Try run commit new work with parent", "number", parent.Number(), "hash", parent.Hash().Hex())
+	if parent.NumberU64() < self.lastBlockCommit {
+		log.Debug("Reject becasue It's just commited block ", "number", self.lastBlockCommit)
+	}
 	var signers map[common.Address]struct{}
 	if !self.commitTxWhenNotMining && atomic.LoadInt32(&self.mining) == 0 {
 		return
@@ -614,6 +618,7 @@ func (self *worker) commitNewWork() {
 	// We only care about logging if we're actually mining.
 	if atomic.LoadInt32(&self.mining) == 1 {
 		log.Info("Commit new mining work", "number", work.Block.Number(), "txs", work.tcount, "special txs", len(specialTxs), "uncles", len(uncles), "elapsed", common.PrettyDuration(time.Since(tstart)))
+		self.lastBlockCommit = work.Block.Number().Uint64()
 		self.unconfirmed.Shift(work.Block.NumberU64() - 1)
 	}
 	self.push(work)
