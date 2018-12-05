@@ -297,6 +297,7 @@ func (pool *TxPool) loop() {
 				head = ev.Block
 
 				pool.mu.Unlock()
+				log.Debug("Finish reset tx pool ", "number", ev.Block.Number(), "hash", ev.Block.Hash().Hex())
 			}
 			// Be unsubscribed due to system stopped
 		case <-pool.chainHeadSub.Err():
