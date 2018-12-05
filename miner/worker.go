@@ -557,6 +557,7 @@ func (self *worker) commitNewWork() {
 	if atomic.LoadInt32(&self.mining) == 1 {
 		header.Coinbase = self.coinbase
 	}
+	log.Debug("commit new work : start prepare","number", header.Number.Uint64(), "elapsed", common.PrettyDuration(time.Since(tstart)))
 	if err := self.engine.Prepare(self.chain, header); err != nil {
 		log.Error("Failed to prepare header for mining", "err", err)
 		return
@@ -585,12 +586,15 @@ func (self *worker) commitNewWork() {
 	if self.config.DAOForkSupport && self.config.DAOForkBlock != nil && self.config.DAOForkBlock.Cmp(header.Number) == 0 {
 		misc.ApplyDAOHardFork(work.state)
 	}
+	log.Debug("commit new work : start get list pending","number", header.Number.Uint64(), "elapsed", common.PrettyDuration(time.Since(tstart)))
 	pending, err := self.eth.TxPool().Pending()
 	if err != nil {
 		log.Error("Failed to fetch pending transactions", "err", err)
 		return
 	}
+	log.Debug("commit new work : start sort txs by price and nonce","number", header.Number.Uint64(), "elapsed", common.PrettyDuration(time.Since(tstart)))
 	txs, specialTxs := types.NewTransactionsByPriceAndNonce(self.current.signer, pending, signers)
+	log.Debug("commit new work : start try commit txs","number", header.Number.Uint64(), "elapsed", common.PrettyDuration(time.Since(tstart)))
 	work.commitTransactions(self.mux, txs, specialTxs, self.chain, self.coinbase)
 
 	// compute uncles for the new block.
@@ -615,6 +619,7 @@ func (self *worker) commitNewWork() {
 	for _, hash := range badUncles {
 		delete(self.possibleUncles, hash)
 	}
+	log.Debug("commit new work : start finalize block","number", header.Number.Uint64(), "elapsed", common.PrettyDuration(time.Since(tstart)))
 	// Create the new block to seal with the consensus engine
 	if work.Block, err = self.engine.Finalize(self.chain, header, work.state, work.txs, uncles, work.receipts); err != nil {
 		log.Error("Failed to finalize block for sealing", "err", err)
