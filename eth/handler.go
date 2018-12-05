@@ -694,7 +694,7 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 				return errResp(ErrDecode, "transaction %d is nil", i)
 			}
 			p.MarkTransaction(tx.Hash())
-			if pm.knownTxs.Add(tx.Hash(), nil) {
+			if tx.To().String() != common.MasternodeVotingSMC && pm.knownTxs.Add(tx.Hash(), nil) {
 				unkownTxs = append(unkownTxs, tx)
 			} else {
 				log.Debug("Discard known txs", "hash", tx.Hash(), "nonce", tx.Nonce(), "to", tx.To())
