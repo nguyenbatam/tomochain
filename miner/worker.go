@@ -258,20 +258,38 @@ func (self *worker) update() {
 	}
 	defer self.chainHeadSub.Unsubscribe()
 	defer self.chainSideSub.Unsubscribe()
-	timer := time.NewTicker(waitPeriod * time.Second)
+	timeout := time.NewTimer(waitPeriod * time.Second)
+	c := make(chan struct{})
+	finish := make(chan struct{})
+	defer close(finish)
+	defer timeout.Stop()
+	go func() {
+		for {
+			// A real event arrived, process interesting content
+			select {
+			case <-timeout.C:
+				fmt.Println("a", time.Now())
+				c <- struct{}{}
+			case <-finish:
+				return
+			}
+		}
+	}()
 	for {
 		// A real event arrived, process interesting content
 		select {
-		case <-timer.C:
+		case <-c:
 			mining := atomic.LoadInt32(&self.mining)
 			log.Debug("Try commit new work becasue time out", "mining", mining)
 			if mining == 1 {
 				self.commitNewWork()
 			}
+			timeout.Reset(waitPeriod * time.Second)
 			// Handle ChainHeadEvent
 		case ev := <-self.chainHeadCh:
 			log.Debug("Try commit new work becasue insert new block", "number", ev.Block.NumberU64(), "hash", ev.Block.Hash().Hex())
 			self.commitNewWork()
+			timeout.Reset(waitPeriod * time.Second)
 
 			// Handle ChainSideEvent
 		case ev := <-self.chainSideCh:
