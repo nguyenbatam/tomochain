@@ -263,11 +263,14 @@ func (self *worker) update() {
 		// A real event arrived, process interesting content
 		select {
 		case <-timeout.C:
-			if atomic.LoadInt32(&self.mining) == 1 {
+			mining := atomic.LoadInt32(&self.mining)
+			log.Debug("Try commit new work becasue time out", "mining", mining)
+			if mining == 1 {
 				self.commitNewWork()
 			}
 			// Handle ChainHeadEvent
-		case <-self.chainHeadCh:
+		case ev := <-self.chainHeadCh:
+			log.Debug("Try commit new work becasue insert new block", "number", ev.Block.NumberU64(), "hash", ev.Block.Hash().Hex())
 			self.commitNewWork()
 			timeout.Reset(waitPeriod * time.Second)
 
@@ -294,9 +297,11 @@ func (self *worker) update() {
 					self.commitNewWork()
 				}
 			}
-		case <-self.chainHeadSub.Err():
+		case err := <-self.chainHeadSub.Err():
+			log.Debug("End update func ", "err", err)
 			return
-		case <-self.chainSideSub.Err():
+		case err := <-self.chainSideSub.Err():
+			log.Debug("End update func ", "err", err)
 			return
 		}
 	}
@@ -465,6 +470,7 @@ func hop(len, pre, cur int) int {
 }
 
 func (self *worker) commitNewWork() {
+	defer log.Debug("finish commit new work")
 	self.mu.Lock()
 	defer self.mu.Unlock()
 	self.uncleMu.Lock()
@@ -502,7 +508,7 @@ func (self *worker) commitNewWork() {
 				return
 			}
 			if !ok {
-				log.Info("Not my turn to commit block. Waiting...")
+				log.Info("Not my turn to commit block. Waiting...", "preIndex", preIndex, "curIndex", curIndex)
 				// in case some nodes are down
 				if preIndex == -1 {
 					// first block
@@ -519,12 +525,12 @@ func (self *worker) commitNewWork() {
 				if uint64(h) >= nearest {
 					gap += waitPeriodCheckpoint
 				}
-				log.Info("Distance from the parent block", "seconds", gap, "hops", h)
 				waitedTime := time.Now().Unix() - parent.Header().Time.Int64()
+				log.Info("Distance from the parent block", "seconds", gap, "hops", h, "waitedTime", waitedTime)
 				if gap > waitedTime {
 					return
 				}
-				log.Info("Wait enough. It's my turn", "waited seconds", waitedTime)
+				log.Info("Wait enough. It's my turn")
 			}
 		}
 	}

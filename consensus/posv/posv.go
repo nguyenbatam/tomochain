@@ -622,6 +622,7 @@ func (c *Posv) verifySeal(chain consensus.ChainReader, header *types.Header, par
 
 	// Resolve the authorization key and check against signers
 	creator, err := ecrecover(header, c.signatures)
+	log.Debug("verify seal block", "number", header.Number.Uint64(), "hash", header.Hash().Hex(), "creator", creator, "err", err)
 	if err != nil {
 		return err
 	}
