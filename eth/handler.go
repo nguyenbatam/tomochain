@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/hashicorp/golang-lru"
 	"math/big"
 	"sync"
 	"sync/atomic"
@@ -92,13 +93,15 @@ type ProtocolManager struct {
 
 	// wait group is used for graceful shutdowns during downloading
 	// and processing
-	wg sync.WaitGroup
+	wg       sync.WaitGroup
+	knownTxs *lru.Cache
 }
 
 // NewProtocolManager returns a new ethereum sub protocol manager. The Ethereum sub protocol manages peers capable
 // with the ethereum network.
 func NewProtocolManager(config *params.ChainConfig, mode downloader.SyncMode, networkId uint64, mux *event.TypeMux, txpool txPool, engine consensus.Engine, blockchain *core.BlockChain, chaindb ethdb.Database) (*ProtocolManager, error) {
 	// Create the protocol manager with the base fields
+	knownTxs, _ := lru.New(maxKnownTxs)
 	manager := &ProtocolManager{
 		networkId:   networkId,
 		eventMux:    mux,
@@ -110,6 +113,7 @@ func NewProtocolManager(config *params.ChainConfig, mode downloader.SyncMode, ne
 		noMorePeers: make(chan struct{}),
 		txsyncCh:    make(chan *txsync),
 		quitSync:    make(chan struct{}),
+		knownTxs:    knownTxs,
 	}
 	// Figure out whether to allow fast sync or not
 	if mode == downloader.FastSync && blockchain.CurrentBlock().NumberU64() > 0 {
@@ -351,7 +355,7 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 			return errResp(ErrDecode, "%v: %v", msg, err)
 		}
 		hashMode := query.Origin.Hash != (common.Hash{})
-		log.Debug("Receive GetBlockHeadersMsg ", "code", msg.Code, "p", p.id, "hash ",query.Origin.Hash.Hex(),"number",query.Origin.Number)
+		log.Debug("Receive GetBlockHeadersMsg ", "code", msg.Code, "p", p.id, "hash ", query.Origin.Hash.Hex(), "number", query.Origin.Number)
 		// Gather headers until the fetch or network limits is reached
 		var (
 			bytes   common.StorageSize
@@ -428,7 +432,7 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		if err := msg.Decode(&headers); err != nil {
 			return errResp(ErrDecode, "msg %v: %v", msg, err)
 		}
-		log.Debug("Receive BlockHeadersMsg ", "code", msg.Code, "p", p.id, "headers ",len(headers))
+		log.Debug("Receive BlockHeadersMsg ", "code", msg.Code, "p", p.id, "headers ", len(headers))
 		// If no headers were received, but we're expending a DAO fork check, maybe it's that
 		if len(headers) == 0 && p.forkDrop != nil {
 			// Possibly an empty reply to the fork header checks, sanity check TDs
@@ -683,14 +687,20 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		if err := msg.Decode(&txs); err != nil {
 			return errResp(ErrDecode, "msg %v: %v", msg, err)
 		}
+		var unkownTxs []*types.Transaction
 		for i, tx := range txs {
 			// Validate and mark the remote transaction
 			if tx == nil {
 				return errResp(ErrDecode, "transaction %d is nil", i)
 			}
 			p.MarkTransaction(tx.Hash())
+			if pm.knownTxs.Add(tx.Hash(), nil) {
+				unkownTxs = append(unkownTxs, tx)
+			} else {
+				log.Debug("Discard known txs", "hash", tx.Hash(), "nonce", tx.Nonce(), "to", tx.To())
+			}
 		}
-		pm.txpool.AddRemotes(txs)
+		pm.txpool.AddRemotes(unkownTxs)
 
 	default:
 		return errResp(ErrInvalidMsgCode, "%v", msg.Code)
