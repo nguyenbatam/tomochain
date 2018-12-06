@@ -694,11 +694,11 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 				return errResp(ErrDecode, "transaction %d is nil", i)
 			}
 			p.MarkTransaction(tx.Hash())
-			if !pm.knownTxs.Contains(tx.Hash()) || (tx.To() != nil && tx.To().String() == common.MasternodeVotingSMC) {
-				pm.knownTxs.Add(tx.Hash(), true)
+			exist, _ := pm.knownTxs.ContainsOrAdd(tx.Hash(), true)
+			if !exist {
 				unkownTxs = append(unkownTxs, tx)
 			} else {
-				log.Debug("Discard known txs", "hash", tx.Hash(), "nonce", tx.Nonce(), "to", tx.To())
+				log.Trace("Discard known txs", "hash", tx.Hash(), "nonce", tx.Nonce(), "to", tx.To())
 			}
 		}
 		pm.txpool.AddRemotes(unkownTxs)
