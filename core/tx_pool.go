@@ -290,15 +290,12 @@ func (pool *TxPool) loop() {
 		case ev := <-pool.chainHeadCh:
 			if ev.Block != nil {
 				tstart := time.Now()
-				log.Debug("pool mutex lock : start wait reset pool ", "number", ev.Block.NumberU64())
 				pool.mu.Lock()
-				log.Debug("pool mutex lock : start reset pool ", "number", ev.Block.NumberU64(), "elapsed", common.PrettyDuration(time.Since(tstart)))
 				if pool.chainconfig.IsHomestead(ev.Block.Number()) {
 					pool.homestead = true
 				}
 				pool.reset(head.Header(), ev.Block.Header())
 				head = ev.Block
-
 				pool.mu.Unlock()
 				log.Debug("pool mutex lock : end reset pool ", "number", ev.Block.NumberU64(), "elapsed", common.PrettyDuration(time.Since(tstart)))
 			}
@@ -320,10 +317,7 @@ func (pool *TxPool) loop() {
 
 			// Handle inactive account transaction eviction
 		case <-evict.C:
-			tstart := time.Now()
-			log.Debug("pool mutex lock : start wait evict ")
 			pool.mu.Lock()
-			log.Debug("pool mutex lock : start run evict ", "elapsed", common.PrettyDuration(time.Since(tstart)))
 			for addr := range pool.queue {
 				// Skip local transactions from the eviction mechanism
 				if pool.locals.contains(addr) {
@@ -337,20 +331,15 @@ func (pool *TxPool) loop() {
 				}
 			}
 			pool.mu.Unlock()
-			log.Debug("pool mutex lock : end run evict ", "elapsed", common.PrettyDuration(time.Since(tstart)))
 
 			// Handle local transaction journal rotation
 		case <-journal.C:
 			if pool.journal != nil {
-				tstart := time.Now()
-				log.Debug("pool mutex lock : start wait journal ")
 				pool.mu.Lock()
-				log.Debug("pool mutex lock : start run journal ", "elapsed", common.PrettyDuration(time.Since(tstart)))
 				if err := pool.journal.rotate(pool.local()); err != nil {
 					log.Warn("Failed to rotate local tx journal", "err", err)
 				}
 				pool.mu.Unlock()
-				log.Debug("pool mutex lock : end run journal ", "elapsed", common.PrettyDuration(time.Since(tstart)))
 			}
 		}
 	}
@@ -360,9 +349,7 @@ func (pool *TxPool) loop() {
 // manner. This method is only ever used in the tester!
 func (pool *TxPool) lockedReset(oldHead, newHead *types.Header) {
 	tstart := time.Now()
-	log.Debug("pool mutex lock : start wait lockedReset ", "oldHead", oldHead, "oldHash", oldHead.Hash().Hex(), "newHead", newHead.Number.Uint64(), "newHash", newHead.Hash().Hex())
 	pool.mu.Lock()
-	log.Debug("pool mutex lock : start run lockedReset ", "oldHead", oldHead, "oldHash", oldHead.Hash().Hex(), "newHead", newHead.Number.Uint64(), "newHash", newHead.Hash().Hex(), "elapsed", common.PrettyDuration(time.Since(tstart)))
 	defer log.Debug("pool mutex lock : end run lockedReset ", "elapsed", common.PrettyDuration(time.Since(tstart)))
 	defer pool.mu.Unlock()
 
@@ -528,11 +515,7 @@ func (pool *TxPool) stats() (int, int) {
 // Content retrieves the data content of the transaction pool, returning all the
 // pending as well as queued transactions, grouped by account and sorted by nonce.
 func (pool *TxPool) Content() (map[common.Address]types.Transactions, map[common.Address]types.Transactions) {
-	tstart := time.Now()
-	log.Debug("pool mutex lock : start wait Content ")
 	pool.mu.Lock()
-	log.Debug("pool mutex lock : start run Content ", common.PrettyDuration(time.Since(tstart)))
-	defer log.Debug("pool mutex lock : end run Content ", "elapsed", common.PrettyDuration(time.Since(tstart)))
 	defer pool.mu.Unlock()
 
 	pending := make(map[common.Address]types.Transactions)
@@ -550,11 +533,7 @@ func (pool *TxPool) Content() (map[common.Address]types.Transactions, map[common
 // account and sorted by nonce. The returned transaction set is a copy and can be
 // freely modified by calling code.
 func (pool *TxPool) Pending() (map[common.Address]types.Transactions, error) {
-	tstart := time.Now()
-	log.Debug("pool mutex lock : start wait get list pending ")
 	pool.mu.Lock()
-	log.Debug("pool mutex lock : start run get list pending ", "elapsed", common.PrettyDuration(time.Since(tstart)))
-	defer log.Debug("pool mutex lock : end run get list pending ", "elapsed", common.PrettyDuration(time.Since(tstart)))
 	defer pool.mu.Unlock()
 
 	pending := make(map[common.Address]types.Transactions)
@@ -886,11 +865,7 @@ func (pool *TxPool) AddRemotes(txs []*types.Transaction) []error {
 func (pool *TxPool) addTx(tx *types.Transaction, local bool) error {
 	tx.CacheHash()
 	types.CacheSigner(pool.signer, tx)
-	tstart := time.Now()
-	log.Debug("pool mutex lock : start wait addTx ", "local", local)
 	pool.mu.Lock()
-	log.Debug("pool mutex lock : start run addTx ", "local", local, "elapsed", common.PrettyDuration(time.Since(tstart)))
-	defer log.Debug("pool mutex lock : end run addTx ", "elapsed", common.PrettyDuration(time.Since(tstart)))
 	defer pool.mu.Unlock()
 
 	// Try to inject the transaction and update any state
@@ -908,11 +883,7 @@ func (pool *TxPool) addTx(tx *types.Transaction, local bool) error {
 
 // addTxs attempts to queue a batch of transactions if they are valid.
 func (pool *TxPool) addTxs(txs []*types.Transaction, local bool) []error {
-	tstart := time.Now()
-	log.Debug("pool mutex lock : start wait addTxs ", "local", local)
 	pool.mu.Lock()
-	log.Debug("pool mutex lock : start run addTxs ", "local", local, "elapsed", common.PrettyDuration(time.Since(tstart)))
-	defer log.Debug("pool mutex lock : end run addTxs ", "elapsed", common.PrettyDuration(time.Since(tstart)))
 	defer pool.mu.Unlock()
 
 	return pool.addTxsLocked(txs, local)
