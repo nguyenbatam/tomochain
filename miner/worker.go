@@ -268,7 +268,6 @@ func (self *worker) update() {
 			// A real event arrived, process interesting content
 			select {
 			case <-timeout.C:
-				fmt.Println("a", time.Now())
 				c <- struct{}{}
 			case <-finish:
 				return
