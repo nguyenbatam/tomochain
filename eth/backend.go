@@ -257,25 +257,27 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 					blockSignerAddr := common.HexToAddress(common.BlockSigners)
 					// Loop for each block to check missing sign.
 					for i := prevEpoc; i < blockNumberEpoc; i++ {
-						blockHeader := chain.GetHeaderByNumber(i)
-						if len(penSigners) > 0 {
-							signedMasternodes, err := contracts.GetSignersFromContract(blockSignerAddr, client, blockHeader.Hash())
-							if err != nil {
-								return nil, err
-							}
-							if len(signedMasternodes) > 0 {
-								// Check signer signed?
-								for _, signed := range signedMasternodes {
-									for j, addr := range penSigners {
-										if signed == addr {
-											// Remove it from dupSigners.
-											penSigners = append(penSigners[:j], penSigners[j+1:]...)
+						if i%common.MergeSignRange == 0 {
+							blockHeader := chain.GetHeaderByNumber(i)
+							if len(penSigners) > 0 {
+								signedMasternodes, err := contracts.GetSignersFromContract(blockSignerAddr, client, blockHeader.Hash())
+								if err != nil {
+									return nil, err
+								}
+								if len(signedMasternodes) > 0 {
+									// Check signer signed?
+									for _, signed := range signedMasternodes {
+										for j, addr := range penSigners {
+											if signed == addr {
+												// Remove it from dupSigners.
+												penSigners = append(penSigners[:j], penSigners[j+1:]...)
+											}
 										}
 									}
 								}
+							} else {
+								break
 							}
-						} else {
-							break
 						}
 					}
 				}

@@ -15,6 +15,7 @@ const (
 	BlocksPerYear              = uint64(15768000)
 	LimitThresholdNonceInQueue = 10
 	MinGasPrice                = 2500
+	MergeSignRange             = 15
 )
 
 var IsTestnet bool = false
