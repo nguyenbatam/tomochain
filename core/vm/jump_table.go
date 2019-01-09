@@ -24,10 +24,10 @@ import (
 )
 
 type (
-	executionFunc       func(pc *uint64, env *EVM, contract *Contract, memory *Memory, stack *Stack) ([]byte, error)
-	gasFunc             func(params.GasTable, *EVM, *Contract, *Stack, *Memory, uint64) (uint64, error) // last parameter is the requested memory size as a uint64
+	executionFunc func(pc *uint64, env *EVM, contract *Contract, memory *Memory, stack *Stack) ([]byte, error)
+	gasFunc func(params.GasTable, *EVM, *Contract, *Stack, *Memory, uint64) (uint64, error) // last parameter is the requested memory size as a uint64
 	stackValidationFunc func(*Stack) error
-	memorySizeFunc      func(*Stack) *big.Int
+	memorySizeFunc func(*Stack) *big.Int
 )
 
 var errGasUintOverflow = errors.New("gas uint64 overflow")
@@ -55,6 +55,7 @@ var (
 	homesteadInstructionSet      = NewHomesteadInstructionSet()
 	byzantiumInstructionSet      = NewByzantiumInstructionSet()
 	constantinopleInstructionSet = NewConstantinopleInstructionSet()
+	tomoInstructionSet           = NewTOMOsteadInstructionSet()
 )
 
 // NewConstantinopleInstructionSet returns the frontier, homestead
@@ -130,6 +131,37 @@ func NewHomesteadInstructionSet() [256]operation {
 		gasCost:       gasDelegateCall,
 		validateStack: makeStackFunc(6, 1),
 		memorySize:    memoryDelegateCall,
+		valid:         true,
+		returns:       true,
+	}
+	return instructionSet
+}
+
+// NewHomesteadInstructionSet returns the frontier and homestead
+// instructions that can be executed during the homestead phase.
+func NewTOMOsteadInstructionSet() [256]operation {
+	// instructions that can be executed during the byzantium phase.
+	instructionSet := NewConstantinopleInstructionSet()
+	instructionSet[SSTORE] = operation{
+		execute:       opSstore,
+		gasCost:       gasConstantSStore,
+		validateStack: makeStackFunc(2, 0),
+		valid:         true,
+		writes:        true,
+	}
+	instructionSet[SELFDESTRUCT] = operation{
+		execute:       opSuicide,
+		gasCost:       gasConstantSuicide,
+		validateStack: makeStackFunc(1, 0),
+		halts:         true,
+		valid:         true,
+		writes:        true,
+	}
+	instructionSet[CALL] = operation{
+		execute:       opCall,
+		gasCost:       gasConstantCall,
+		validateStack: makeStackFunc(7, 1),
+		memorySize:    memoryCall,
 		valid:         true,
 		returns:       true,
 	}

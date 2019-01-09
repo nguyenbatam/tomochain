@@ -137,6 +137,10 @@ func gasSStore(gt params.GasTable, evm *EVM, contract *Contract, stack *Stack, m
 	}
 }
 
+func gasConstantSStore(gt params.GasTable, evm *EVM, contract *Contract, stack *Stack, mem *Memory, memorySize uint64) (uint64, error) {
+	return params.SstoreSetGas, nil
+}
+
 func makeGasLog(n uint64) gasFunc {
 	return func(gt params.GasTable, evm *EVM, contract *Contract, stack *Stack, mem *Memory, memorySize uint64) (uint64, error) {
 		requestedSize, overflow := bigUint64(stack.Back(1))
@@ -303,7 +307,6 @@ func gasSLoad(gt params.GasTable, evm *EVM, contract *Contract, stack *Stack, me
 
 func gasExp(gt params.GasTable, evm *EVM, contract *Contract, stack *Stack, mem *Memory, memorySize uint64) (uint64, error) {
 	expByteLen := uint64((stack.data[stack.len()-2].BitLen() + 7) / 8)
-
 	var (
 		gas      = expByteLen * gt.ExpByte // no overflow check required. Max is 256 * ExpByte gas
 		overflow bool
@@ -331,6 +334,29 @@ func gasCall(gt params.GasTable, evm *EVM, contract *Contract, stack *Stack, mem
 	if transfersValue {
 		gas += params.CallValueTransferGas
 	}
+	memoryGas, err := memoryGasCost(mem, memorySize)
+	if err != nil {
+		return 0, err
+	}
+	var overflow bool
+	if gas, overflow = math.SafeAdd(gas, memoryGas); overflow {
+		return 0, errGasUintOverflow
+	}
+
+	evm.callGasTemp, err = callGas(gt, contract.Gas, gas, stack.Back(0))
+	if err != nil {
+		return 0, err
+	}
+	if gas, overflow = math.SafeAdd(gas, evm.callGasTemp); overflow {
+		return 0, errGasUintOverflow
+	}
+	return gas, nil
+}
+
+func gasConstantCall(gt params.GasTable, evm *EVM, contract *Contract, stack *Stack, mem *Memory, memorySize uint64) (uint64, error) {
+	gas := gt.Calls
+	gas += params.CallNewAccountGas
+	gas += params.CallValueTransferGas
 	memoryGas, err := memoryGasCost(mem, memorySize)
 	if err != nil {
 		return 0, err
@@ -406,6 +432,10 @@ func gasSuicide(gt params.GasTable, evm *EVM, contract *Contract, stack *Stack, 
 		evm.StateDB.AddRefund(params.SuicideRefundGas)
 	}
 	return gas, nil
+}
+
+func gasConstantSuicide(gt params.GasTable, evm *EVM, contract *Contract, stack *Stack, mem *Memory, memorySize uint64) (uint64, error) {
+	return gt.Suicide + gt.CreateBySuicide, nil
 }
 
 func gasDelegateCall(gt params.GasTable, evm *EVM, contract *Contract, stack *Stack, mem *Memory, memorySize uint64) (uint64, error) {

@@ -1,5 +1,7 @@
 package common
 
+import "math/big"
+
 const (
 	RewardMasterPercent        = 40
 	RewardVoterPercent         = 50
@@ -17,5 +19,6 @@ const (
 	MinGasPrice                = 2500
 )
 
+var TIP2019Block = big.NewInt(100000)
 var IsTestnet bool = false
 var StoreRewardFolder string

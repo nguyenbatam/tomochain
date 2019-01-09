@@ -51,7 +51,7 @@
             ],
             "Frontier" : [
                 {
-                    "hash" : "0x34d7901155216d65e87ee1875a09b467b9391bd0a3a704619dfc6ae70b573f71",
+                    "hash" : "34d7901155216d65e87ee1875a09b467b9391bd0a3a704619dfc6ae70b573f71",
                     "indexes" : {
                         "data" : 0,
                         "gas" : 0,

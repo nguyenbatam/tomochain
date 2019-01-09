@@ -168,7 +168,6 @@ func TestCallTracer(t *testing.T) {
 				t.Fatalf("failed to create call tracer: %v", err)
 			}
 			evm := vm.NewEVM(context, statedb, test.Genesis.Config, vm.Config{Debug: true, Tracer: tracer})
-
 			msg, err := tx.AsMessage(signer)
 			if err != nil {
 				t.Fatalf("failed to prepare transaction for tracing: %v", err)
