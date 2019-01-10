@@ -1,5 +1,7 @@
 package common
 
+import "math/big"
+
 const (
 	RewardMasterPercent        = 40
 	RewardVoterPercent         = 50
@@ -18,5 +20,6 @@ const (
 	MergeSignRange             = 15
 )
 
+var TIP2019Block = big.NewInt(100)
 var IsTestnet bool = false
 var StoreRewardFolder string

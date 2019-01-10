@@ -64,7 +64,7 @@ func CreateTransactionSign(chainConfig *params.ChainConfig, pool *core.TxPool, m
 	TxSignMu.Lock()
 	defer TxSignMu.Unlock()
 	blockNumber := block.Number().Uint64()
-	if chainConfig.Posv != nil && blockNumber%common.MergeSignRange == 0 {
+	if chainConfig.Posv != nil {
 		// Find active account.
 		account := accounts.Account{}
 		var wallet accounts.Wallet
@@ -318,7 +318,7 @@ func GetRewardForCheckpoint(chain consensus.ChainReader, blockSignerAddr common.
 
 	if len(masternodes) > 0 {
 		for i := startBlockNumber; i <= endBlockNumber; i++ {
-			if i%common.MergeSignRange == 0 {
+			if i%common.MergeSignRange == 0 || !chain.Config().IsTIP2019(chain.CurrentHeader().Number) {
 				block := chain.GetHeaderByNumber(i)
 				addrs, err := GetSignersFromContract(blockSignerAddr, client, block.Hash())
 				if err != nil {

@@ -868,7 +868,7 @@ func (s *PublicBlockChainAPI) rpcOutputBlock(b *types.Block, inclTx bool, fullTx
 		curBlockNumber := b.Number().Uint64()
 		prevBlockNumber := rpc.BlockNumber(curBlockNumber + (common.MergeSignRange - (curBlockNumber % common.MergeSignRange)))
 		latestBlockNumber := s.b.CurrentBlock().Number()
-		if prevBlockNumber.Int64() >= latestBlockNumber.Int64() {
+		if prevBlockNumber.Int64() >= latestBlockNumber.Int64() || !s.b.ChainConfig().IsTIP2019(latestBlockNumber) {
 			prevBlockNumber = rpc.BlockNumber(curBlockNumber)
 		}
 		if s.b.ChainConfig().Posv != nil {
