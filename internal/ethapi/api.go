@@ -866,25 +866,28 @@ func (s *PublicBlockChainAPI) rpcOutputBlock(b *types.Block, inclTx bool, fullTx
 	finality := int32(0)
 	if b.Number().Int64() > 0 {
 		curBlockNumber := b.Number().Uint64()
-		prevBlockNumber := rpc.BlockNumber(curBlockNumber + (common.MergeSignRange - (curBlockNumber % common.MergeSignRange)))
-		latestBlockNumber := s.b.CurrentBlock().Number()
-		if prevBlockNumber.Int64() >= latestBlockNumber.Int64() || !s.b.ChainConfig().IsTIP2019(latestBlockNumber) {
-			prevBlockNumber = rpc.BlockNumber(curBlockNumber)
+		prevBlockNumber := curBlockNumber + (common.MergeSignRange - (curBlockNumber % common.MergeSignRange))
+		latestBlockNumber := s.b.CurrentBlock().Number().Uint64()
+		if prevBlockNumber >= latestBlockNumber || !s.b.ChainConfig().IsTIP2019(b.Number()) {
+			prevBlockNumber = curBlockNumber
 		}
-		if s.b.ChainConfig().Posv != nil {
-			prevBlock, _ := s.b.BlockByNumber(ctx, prevBlockNumber)
+		if engine, ok := s.b.GetEngine().(*posv.Posv); ok {
+			prevBlock, _ := s.b.BlockByNumber(ctx, rpc.BlockNumber(prevBlockNumber))
 			addrBlockSigner := common.HexToAddress(common.BlockSigners)
 			signers, err = contracts.GetSignersFromContract(addrBlockSigner, client, prevBlock.Hash())
 			if err != nil {
 				log.Error("Fail to get signers from block signer SC.", "error", err)
 				return nil, err
 			}
+			validator, _ := engine.RecoverValidator(b.Header())
+			creator, _ := engine.RecoverSigner(b.Header())
+			signers = append(signers, validator)
+			signers = append(signers, creator)
 			// Get block epoc latest.
-			engine := s.b.GetEngine()
-			lastCheckpointNumber := rpc.BlockNumber(curBlockNumber - (curBlockNumber % s.b.ChainConfig().Posv.Epoch))
-			prevCheckpointBlock, _ := s.b.BlockByNumber(ctx, lastCheckpointNumber)
+			lastCheckpointNumber := prevBlockNumber - (prevBlockNumber % s.b.ChainConfig().Posv.Epoch)
+			prevCheckpointBlock, _ := s.b.BlockByNumber(ctx, rpc.BlockNumber(lastCheckpointNumber))
 			if prevCheckpointBlock != nil {
-				masternodes := engine.(*posv.Posv).GetMasternodesFromCheckpointHeader(prevCheckpointBlock.Header(), curBlockNumber, s.b.ChainConfig().Posv.Epoch)
+				masternodes := engine.GetMasternodesFromCheckpointHeader(prevCheckpointBlock.Header(), curBlockNumber, s.b.ChainConfig().Posv.Epoch)
 				countFinality := 0
 				for _, masternode := range masternodes {
 					for _, signer := range signers {

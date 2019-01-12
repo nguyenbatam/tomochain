@@ -197,7 +197,7 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 				// silently return as this node doesn't have masternode permission to sign block
 				return nil
 			}
-			if block.NumberU64()%common.MergeSignRange == 0 || !eth.chainConfig.IsTIP2019(eth.blockchain.CurrentHeader().Number) {
+			if block.NumberU64()%common.MergeSignRange == 0 || !eth.chainConfig.IsTIP2019(block.Number()) {
 				if err := contracts.CreateTransactionSign(chainConfig, eth.txPool, eth.accountManager, block, chainDb); err != nil {
 					return fmt.Errorf("Fail to create tx sign for importing block: %v", err)
 				}
@@ -259,7 +259,7 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 					blockSignerAddr := common.HexToAddress(common.BlockSigners)
 					// Loop for each block to check missing sign.
 					for i := prevEpoc; i < blockNumberEpoc; i++ {
-						if i%common.MergeSignRange == 0 || !chainConfig.IsTIP2019(chain.CurrentHeader().Number) {
+						if i%common.MergeSignRange == 0 || !chainConfig.IsTIP2019(big.NewInt(int64(i))) {
 							blockHeader := chain.GetHeaderByNumber(i)
 							if len(penSigners) > 0 {
 								signedMasternodes, err := contracts.GetSignersFromContract(blockSignerAddr, client, blockHeader.Hash())
@@ -329,7 +329,7 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 				voterResults := make(map[common.Address]interface{})
 				if len(signers) > 0 {
 					for signer, calcReward := range rewardSigners {
-						err, rewards := contracts.CalculateRewardForHolders(foudationWalletAddr, validator, state, signer, calcReward)
+						err, rewards := contracts.CalculateRewardForHolders(foudationWalletAddr, validator, state, signer, calcReward, number)
 						if err != nil {
 							log.Crit("Fail to calculate reward for holders.", "error", err)
 						}
