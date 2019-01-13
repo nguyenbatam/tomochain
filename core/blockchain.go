@@ -1072,9 +1072,10 @@ func (bc *BlockChain) insertChain(chain types.Blocks) (int, []interface{}, []*ty
 		seals[i] = true
 		bc.downloadingBlock.Add(block.Hash(), true)
 		bc.downloadingBlock.Add(block.Hash(), true)
-		if _, ok := bc.fetchingBlock.Get(block.Hash()); ok {
-			log.Debug("Stop download a block because fetching", "number", block.NumberU64(), "hash", block.Hash())
-			return 0, events, coalescedLogs, nil
+		if c, _ := bc.fetchingBlock.Get(block.Hash()); c != nil {
+			log.Debug("Wait download a block because fetching", "number", block.NumberU64(), "hash", block.Hash())
+			<-c.(chan struct{})
+			log.Debug("End wait download a block because fetching", "number", block.NumberU64(), "hash", block.Hash())
 		}
 		if calculatedBlock, _ := bc.calculatingBlock.Get(block.HashNoValidator()); calculatedBlock != nil {
 			calculatedBlock.(*CalculatedBlock).stop = true
@@ -1380,8 +1381,10 @@ func (bc *BlockChain) insertBlock(block *types.Block) ([]interface{}, []*types.L
 		log.Debug("Stop fetcher a block because downloading", "number", block.NumberU64(), "hash", block.Hash())
 		return events, coalescedLogs, nil
 	}
-	bc.fetchingBlock.Add(block.Hash(), true)
+	c := make(chan struct{})
+	bc.fetchingBlock.Add(block.Hash(), c)
 	defer bc.fetchingBlock.Remove(block.Hash())
+	defer close(c)
 	result, err := bc.getResultBlock(block, true)
 	if err != nil {
 		return events, coalescedLogs, err
