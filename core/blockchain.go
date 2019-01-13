@@ -130,6 +130,7 @@ type BlockChain struct {
 	resultProcess    *lru.Cache     // Cache for processed blocks
 	calculatingBlock *lru.Cache     // Cache for processing blocks
 	downloadingBlock *lru.Cache     // Cache for downloading blocks (avoid duplication from fetcher)
+	fetchingBlock    *lru.Cache     // Cache for downloading blocks (avoid duplication from fetcher)
 	quit             chan struct{}  // blockchain quit channel
 	running          int32          // running must be called atomically
 	// procInterrupt must be atomically called
@@ -1068,6 +1069,14 @@ func (bc *BlockChain) insertChain(chain types.Blocks) (int, []interface{}, []*ty
 		headers[i] = block.Header()
 		seals[i] = true
 		bc.downloadingBlock.Add(block.Hash(), true)
+		bc.downloadingBlock.Add(block.Hash(), true)
+		if _, ok := bc.fetchingBlock.Get(block.Hash()); ok {
+			log.Debug("Stop download a block because fetching", "number", block.NumberU64(), "hash", block.Hash())
+			return 0, events, coalescedLogs, nil
+		}
+		if calculatedBlock, _ := bc.calculatingBlock.Get(block.HashNoValidator()); calculatedBlock != nil {
+			calculatedBlock.(*CalculatedBlock).stop = true
+		}
 	}
 	abort, results := bc.engine.VerifyHeaders(bc, headers, seals)
 	defer close(abort)
@@ -1369,6 +1378,8 @@ func (bc *BlockChain) insertBlock(block *types.Block) ([]interface{}, []*types.L
 		log.Debug("Stop fetcher a block because downloading", "number", block.NumberU64(), "hash", block.Hash())
 		return events, coalescedLogs, nil
 	}
+	bc.fetchingBlock.Add(block.Hash(), true)
+	defer bc.fetchingBlock.Remove(block.Hash())
 	result, err := bc.getResultBlock(block, true)
 	if err != nil {
 		return events, coalescedLogs, err
