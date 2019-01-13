@@ -122,17 +122,19 @@ type BlockChain struct {
 	currentBlock     atomic.Value // Current head of the block chain
 	currentFastBlock atomic.Value // Current head of the fast-sync chain (may be above the block chain!)
 
-	stateCache       state.Database // State database to reuse between imports (contains state cache)
-	bodyCache        *lru.Cache     // Cache for the most recent block bodies
-	bodyRLPCache     *lru.Cache     // Cache for the most recent block bodies in RLP encoded format
-	blockCache       *lru.Cache     // Cache for the most recent entire blocks
-	futureBlocks     *lru.Cache     // future blocks are blocks added for later processing
-	resultProcess    *lru.Cache     // Cache for processed blocks
-	calculatingBlock *lru.Cache     // Cache for processing blocks
-	downloadingBlock *lru.Cache     // Cache for downloading blocks (avoid duplication from fetcher)
-	fetchingBlock    *lru.Cache     // Cache for downloading blocks (avoid duplication from fetcher)
-	quit             chan struct{}  // blockchain quit channel
-	running          int32          // running must be called atomically
+	stateCache       state.Database                // State database to reuse between imports (contains state cache)
+	bodyCache        *lru.Cache                    // Cache for the most recent block bodies
+	bodyRLPCache     *lru.Cache                    // Cache for the most recent block bodies in RLP encoded format
+	blockCache       *lru.Cache                    // Cache for the most recent entire blocks
+	futureBlocks     *lru.Cache                    // future blocks are blocks added for later processing
+	resultProcess    *lru.Cache                    // Cache for processed blocks
+	calculatingBlock *lru.Cache                    // Cache for processing blocks
+	downloadingBlock *lru.Cache                    // Cache for downloading blocks (avoid duplication from fetcher)
+	fetchingBlock    map[common.Hash]chan struct{} // Cache for downloading blocks (avoid duplication from fetcher)
+	fetchingMu       sync.RWMutex
+
+	quit    chan struct{} // blockchain quit channel
+	running int32         // running must be called atomically
 	// procInterrupt must be atomically called
 	procInterrupt int32          // interrupt signaler for block processing
 	wg            sync.WaitGroup // chain processing wait group for shutting down
@@ -165,7 +167,7 @@ func NewBlockChain(db ethdb.Database, cacheConfig *CacheConfig, chainConfig *par
 	resultProcess, _ := lru.New(blockCacheLimit)
 	preparingBlock, _ := lru.New(blockCacheLimit)
 	downloadingBlock, _ := lru.New(blockCacheLimit)
-	fetchingBlock, _ := lru.New(blockCacheLimit)
+	fetchingBlock := map[common.Hash]chan struct{}{}
 	bc := &BlockChain{
 		chainConfig:      chainConfig,
 		cacheConfig:      cacheConfig,
@@ -1072,9 +1074,9 @@ func (bc *BlockChain) insertChain(chain types.Blocks) (int, []interface{}, []*ty
 		seals[i] = true
 		bc.downloadingBlock.Add(block.Hash(), true)
 		bc.downloadingBlock.Add(block.Hash(), true)
-		if c, _ := bc.fetchingBlock.Get(block.Hash()); c != nil {
+		if c := bc.getFetchingBlock(block.Hash()); c != nil {
 			log.Debug("Wait download a block because fetching", "number", block.NumberU64(), "hash", block.Hash())
-			<-c.(chan struct{})
+			<-c
 			log.Debug("End wait download a block because fetching", "number", block.NumberU64(), "hash", block.Hash())
 		}
 		if calculatedBlock, _ := bc.calculatingBlock.Get(block.HashNoValidator()); calculatedBlock != nil {
@@ -1381,10 +1383,9 @@ func (bc *BlockChain) insertBlock(block *types.Block) ([]interface{}, []*types.L
 		log.Debug("Stop fetcher a block because downloading", "number", block.NumberU64(), "hash", block.Hash())
 		return events, coalescedLogs, nil
 	}
-	c := make(chan struct{})
-	bc.fetchingBlock.Add(block.Hash(), c)
-	defer bc.fetchingBlock.Remove(block.Hash())
-	defer close(c)
+
+	bc.addFetchingBlock(block.Hash())
+	defer bc.removeFetchingBlock(block.Hash())
 	result, err := bc.getResultBlock(block, true)
 	if err != nil {
 		return events, coalescedLogs, err
@@ -1886,4 +1887,25 @@ func (bc *BlockChain) UpdateM1() error {
 		log.Info("Masternodes are ready for the next epoch")
 	}
 	return nil
+}
+
+func (bc *BlockChain) addFetchingBlock(hash common.Hash) {
+	bc.fetchingMu.Lock()
+	defer bc.fetchingMu.Unlock()
+	c := make(chan struct{})
+	bc.fetchingBlock[hash] = c
+}
+func (bc *BlockChain) getFetchingBlock(hash common.Hash) chan struct{} {
+	bc.fetchingMu.RLock()
+	defer bc.fetchingMu.RUnlock()
+	return bc.fetchingBlock[hash]
+}
+func (bc *BlockChain) removeFetchingBlock(hash common.Hash) {
+	bc.fetchingMu.Lock()
+	defer bc.fetchingMu.Unlock()
+	c := bc.fetchingBlock[hash]
+	if c != nil {
+		close(c)
+	}
+	delete(bc.fetchingBlock, hash)
 }
