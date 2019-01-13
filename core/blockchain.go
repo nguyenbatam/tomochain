@@ -1904,6 +1904,7 @@ func (bc *BlockChain) removeFetchingBlock(hash common.Hash) {
 	bc.fetchingMu.Lock()
 	defer bc.fetchingMu.Unlock()
 	c := bc.fetchingBlock[hash]
+	log.Debug("removeFetchingBlock", "hash", hash)
 	if c != nil {
 		close(c)
 	}
