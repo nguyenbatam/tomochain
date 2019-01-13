@@ -1382,6 +1382,10 @@ func (bc *BlockChain) insertBlock(block *types.Block) ([]interface{}, []*types.L
 	}
 
 	result, err := bc.getResultBlock(block, true)
+	if err == ErrStopPreparingBlock {
+		log.Debug("Stop fetch a block because downloading", "number", block.NumberU64(), "hash", block.Hash(), "validator", block.Header().Validator)
+		return events, coalescedLogs, nil
+	}
 	if err != nil {
 		return events, coalescedLogs, err
 	}
