@@ -167,7 +167,6 @@ func NewBlockChain(db ethdb.Database, cacheConfig *CacheConfig, chainConfig *par
 	resultProcess, _ := lru.New(blockCacheLimit)
 	preparingBlock, _ := lru.New(blockCacheLimit)
 	downloadingBlock, _ := lru.New(blockCacheLimit)
-	fetchingBlock := map[common.Hash]chan struct{}{}
 	bc := &BlockChain{
 		chainConfig:      chainConfig,
 		cacheConfig:      cacheConfig,
@@ -182,7 +181,6 @@ func NewBlockChain(db ethdb.Database, cacheConfig *CacheConfig, chainConfig *par
 		resultProcess:    resultProcess,
 		calculatingBlock: preparingBlock,
 		downloadingBlock: downloadingBlock,
-		fetchingBlock:    fetchingBlock,
 		engine:           engine,
 		vmConfig:         vmConfig,
 		badBlocks:        badBlocks,
