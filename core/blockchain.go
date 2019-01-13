@@ -123,16 +123,14 @@ type BlockChain struct {
 	currentBlock     atomic.Value // Current head of the block chain
 	currentFastBlock atomic.Value // Current head of the fast-sync chain (may be above the block chain!)
 
-	stateCache       state.Database                // State database to reuse between imports (contains state cache)
-	bodyCache        *lru.Cache                    // Cache for the most recent block bodies
-	bodyRLPCache     *lru.Cache                    // Cache for the most recent block bodies in RLP encoded format
-	blockCache       *lru.Cache                    // Cache for the most recent entire blocks
-	futureBlocks     *lru.Cache                    // future blocks are blocks added for later processing
-	resultProcess    *lru.Cache                    // Cache for processed blocks
-	calculatingBlock *lru.Cache                    // Cache for processing blocks
-	downloadingBlock *lru.Cache                    // Cache for downloading blocks (avoid duplication from fetcher)
-	fetchingBlock    map[common.Hash]chan struct{} // Cache for downloading blocks (avoid duplication from fetcher)
-	fetchingMu       sync.RWMutex
+	stateCache       state.Database // State database to reuse between imports (contains state cache)
+	bodyCache        *lru.Cache     // Cache for the most recent block bodies
+	bodyRLPCache     *lru.Cache     // Cache for the most recent block bodies in RLP encoded format
+	blockCache       *lru.Cache     // Cache for the most recent entire blocks
+	futureBlocks     *lru.Cache     // future blocks are blocks added for later processing
+	resultProcess    *lru.Cache     // Cache for processed blocks
+	calculatingBlock *lru.Cache     // Cache for processing blocks
+	downloadingBlock *lru.Cache     // Cache for downloading blocks (avoid duplication from fetcher)
 
 	quit    chan struct{} // blockchain quit channel
 	running int32         // running must be called atomically
@@ -1079,12 +1077,6 @@ func (bc *BlockChain) insertChain(chain types.Blocks) (int, []interface{}, []*ty
 		headers[i] = block.Header()
 		seals[i] = true
 		bc.downloadingBlock.Add(block.Hash(), true)
-		bc.downloadingBlock.Add(block.Hash(), true)
-		if c := bc.getFetchingBlock(block.Hash()); c != nil {
-			log.Debug("Wait download a block because fetching", "number", block.NumberU64(), "hash", block.Hash())
-			<-c
-			log.Debug("End wait download a block because fetching", "number", block.NumberU64(), "hash", block.Hash())
-		}
 		if calculatedBlock, _ := bc.calculatingBlock.Get(block.HashNoValidator()); calculatedBlock != nil {
 			calculatedBlock.(*CalculatedBlock).stop = true
 		}
@@ -1391,8 +1383,6 @@ func (bc *BlockChain) insertBlock(block *types.Block) ([]interface{}, []*types.L
 		return events, coalescedLogs, nil
 	}
 
-	bc.addFetchingBlock(block.Hash())
-	defer bc.removeFetchingBlock(block.Hash())
 	result, err := bc.getResultBlock(block, true)
 	if err != nil {
 		return events, coalescedLogs, err
@@ -1895,29 +1885,4 @@ func (bc *BlockChain) UpdateM1() error {
 		log.Info("Masternodes are ready for the next epoch")
 	}
 	return nil
-}
-
-func (bc *BlockChain) addFetchingBlock(hash common.Hash) {
-	bc.fetchingMu.Lock()
-	c := make(chan struct{})
-	bc.fetchingBlock[hash] = c
-	bc.fetchingMu.Unlock()
-}
-func (bc *BlockChain) getFetchingBlock(hash common.Hash) chan struct{} {
-	bc.fetchingMu.RLock()
-	c := bc.fetchingBlock[hash]
-	bc.fetchingMu.RUnlock()
-	return c
-}
-func (bc *BlockChain) removeFetchingBlock(hash common.Hash) {
-	log.Debug("wait removeFetchingBlock", "hash", hash)
-	bc.fetchingMu.Lock()
-	c := bc.fetchingBlock[hash]
-	delete(bc.fetchingBlock, hash)
-	bc.fetchingMu.Unlock()
-	log.Debug("removeFetchingBlock", "hash", hash)
-	if c != nil {
-		close(c)
-	}
-
 }
