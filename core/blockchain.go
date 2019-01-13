@@ -1899,22 +1899,25 @@ func (bc *BlockChain) UpdateM1() error {
 
 func (bc *BlockChain) addFetchingBlock(hash common.Hash) {
 	bc.fetchingMu.Lock()
-	defer bc.fetchingMu.Unlock()
 	c := make(chan struct{})
 	bc.fetchingBlock[hash] = c
+	bc.fetchingMu.Unlock()
 }
 func (bc *BlockChain) getFetchingBlock(hash common.Hash) chan struct{} {
 	bc.fetchingMu.RLock()
-	defer bc.fetchingMu.RUnlock()
-	return bc.fetchingBlock[hash]
+	c := bc.fetchingBlock[hash]
+	bc.fetchingMu.RUnlock()
+	return c
 }
 func (bc *BlockChain) removeFetchingBlock(hash common.Hash) {
+	log.Debug("wait removeFetchingBlock", "hash", hash)
 	bc.fetchingMu.Lock()
-	defer bc.fetchingMu.Unlock()
 	c := bc.fetchingBlock[hash]
+	delete(bc.fetchingBlock, hash)
+	bc.fetchingMu.Unlock()
 	log.Debug("removeFetchingBlock", "hash", hash)
 	if c != nil {
 		close(c)
 	}
-	delete(bc.fetchingBlock, hash)
+
 }
