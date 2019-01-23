@@ -898,6 +898,72 @@ func (bc *BlockChain) WriteBlockWithoutState(block *types.Block, td *big.Int) (e
 }
 
 // WriteBlockWithState writes the block and all associated state to the database.
+func (bc *BlockChain) WriteBlockCompressWithoutState(block *types.Block, receipts []*types.Receipt) (status WriteStatus, err error) {
+	bc.wg.Add(1)
+	defer bc.wg.Done()
+
+	// Calculate the total difficulty of the block
+	ptd := bc.GetTd(block.ParentHash(), block.NumberU64()-1)
+	if ptd == nil {
+		return NonStatTy, consensus.ErrUnknownAncestor
+	}
+	// Make sure no inconsistent state is leaked during insertion
+	bc.mu.Lock()
+	defer bc.mu.Unlock()
+
+	currentBlock := bc.CurrentBlock()
+	localTd := bc.GetTd(currentBlock.Hash(), currentBlock.NumberU64())
+	externTd := new(big.Int).Add(block.Difficulty(), ptd)
+
+	// Irrelevant of the canonical status, write the block itself to the database
+	if err := bc.hc.WriteTd(block.Hash(), block.NumberU64(), externTd); err != nil {
+		return NonStatTy, err
+	}
+	// Write other block data using a batch.
+	batch := bc.db.NewBatch()
+	if err := WriteBlock(batch, block); err != nil {
+		return NonStatTy, err
+	}
+	if err := WriteBlockReceipts(batch, block.Hash(), block.NumberU64(), receipts); err != nil {
+		return NonStatTy, err
+	}
+	// If the total difficulty is higher than our known, add it to the canonical chain
+	// Second clause in the if statement reduces the vulnerability to selfish mining.
+	// Please refer to http://www.cs.cornell.edu/~ie53/publications/btcProcFC.pdf
+	reorg := externTd.Cmp(localTd) > 0
+	currentBlock = bc.CurrentBlock()
+	if !reorg && externTd.Cmp(localTd) == 0 {
+		// Split same-difficulty blocks by number
+		reorg = block.NumberU64() > currentBlock.NumberU64()
+	}
+	if reorg {
+		// Reorganise the chain if the parent is not the head block
+		if block.ParentHash() != currentBlock.Hash() {
+			if err := bc.reorg(currentBlock, block); err != nil {
+				return NonStatTy, err
+			}
+		}
+		// Write the positional metadata for transaction and receipt lookups
+		if err := WriteTxLookupEntries(batch, block); err != nil {
+			return NonStatTy, err
+		}
+		status = CanonStatTy
+	} else {
+		status = SideStatTy
+	}
+	if err := batch.Write(); err != nil {
+		return NonStatTy, err
+	}
+
+	// Set new head.
+	if status == CanonStatTy {
+		bc.insert(block)
+	}
+	bc.futureBlocks.Remove(block.Hash())
+	return status, nil
+}
+
+// WriteBlockWithState writes the block and all associated state to the database.
 func (bc *BlockChain) WriteBlockWithState(block *types.Block, receipts []*types.Receipt, state *state.StateDB) (status WriteStatus, err error) {
 	bc.wg.Add(1)
 	defer bc.wg.Done()
