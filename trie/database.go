@@ -17,6 +17,7 @@
 package trie
 
 import (
+	"fmt"
 	"sync"
 	"time"
 
@@ -253,6 +254,7 @@ func (db *Database) Commit(node common.Hash, report bool) error {
 
 	// Move all of the accumulated preimages into a write batch
 	for hash, preimage := range db.preimages {
+		fmt.Println("preimages",hash.Hex(),len(preimage))
 		if err := batch.Put(db.secureKey(hash[:]), preimage); err != nil {
 			log.Error("Failed to commit preimage from trie database", "err", err)
 			db.lock.RUnlock()

@@ -357,6 +357,14 @@ func (self *StateDB) deleteStateObject(stateObject *stateObject) {
 	self.setError(self.trie.TryDelete(addr[:]))
 }
 
+// deleteStateObject removes the given object from the state trie.
+func (self *StateDB) DeleteObject(addr common.Address) {
+	stateObject := self.getStateObject(addr)
+	if stateObject != nil {
+		self.deleteStateObject(stateObject)
+	}
+}
+
 // Retrieve a state object given my the address. Returns nil if not found.
 func (self *StateDB) getStateObject(addr common.Address) (stateObject *stateObject) {
 	// Prefer 'live' objects.
@@ -485,6 +493,36 @@ func (self *StateDB) Copy() *StateDB {
 	for hash, preimage := range self.preimages {
 		state.preimages[hash] = preimage
 	}
+	return state
+}
+
+// Copy creates a deep, independent copy of the state.
+// Snapshots of the copied state cannot be applied to the copy.
+func (self *StateDB) CopyCompress() *StateDB {
+	self.lock.Lock()
+	defer self.lock.Unlock()
+
+	// Copy all the basic fields, initialize the memory ones
+	state := &StateDB{
+		db:                self.db,
+		trie:              self.db.CopyTrie(self.trie),
+		stateObjects:      make(map[common.Address]*stateObject, len(self.stateObjectsDirty)),
+		stateObjectsDirty: make(map[common.Address]struct{}, len(self.stateObjectsDirty)),
+		refund:            self.refund,
+		logs:              map[common.Hash][]*types.Log{},
+		preimages:         make(map[common.Hash][]byte),
+	}
+	// Copy the dirty states, logs, and preimages
+	for addr := range self.stateObjectsDirty {
+		state.stateObjects[addr] = self.stateObjects[addr].deepCopy(state, state.MarkStateObjectDirty)
+		state.stateObjectsDirty[addr] = struct{}{}
+	}
+	self.logs = map[common.Hash][]*types.Log{}
+	self.logSize = 0
+	//for hash, logs := range self.logs {
+	//	state.logs[hash] = make([]*types.Log, len(logs))
+	//	copy(state.logs[hash], logs)
+	//}
 	return state
 }
 

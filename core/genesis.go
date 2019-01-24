@@ -136,13 +136,13 @@ func (e *GenesisMismatchError) Error() string {
 	return fmt.Sprintf("database already contains an incompatible genesis block (have %x, new %x)", e.Stored[:8], e.New[:8])
 }
 
-// SetupGenesisBlock writes or updates the genesis block in db.
+// SetupGenesisBlock writes or updates the genesis block in Db.
 // The block that will be used is:
 //
 //                          genesis == nil       genesis != nil
 //                       +------------------------------------------
-//     db has no genesis |  main-net default  |  genesis
-//     db has genesis    |  from DB           |  genesis (if compatible)
+//     Db has no genesis |  main-net default  |  genesis
+//     Db has genesis    |  from DB           |  genesis (if compatible)
 //
 // The stored chain configuration will be updated if it is compatible (i.e. does not
 // specify a fork block below the local head block). In case of a conflict, the
@@ -292,7 +292,7 @@ func (g *Genesis) Commit(db ethdb.Database) (*types.Block, error) {
 	return block, WriteChainConfig(db, block.Hash(), config)
 }
 
-// MustCommit writes the genesis block and state to db, panicking on error.
+// MustCommit writes the genesis block and state to Db, panicking on error.
 // The block is committed as the canonical head block.
 func (g *Genesis) MustCommit(db ethdb.Database) *types.Block {
 	block, err := g.Commit(db)

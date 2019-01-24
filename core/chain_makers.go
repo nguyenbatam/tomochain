@@ -159,7 +159,7 @@ func (b *BlockGen) OffsetTime(seconds int64) {
 }
 
 // GenerateChain creates a chain of n blocks. The first block's
-// parent will be the provided parent. db is used to store
+// parent will be the provided parent. Db is used to store
 // intermediate states and should contain the parent's state trie.
 //
 // The generator function is called with a new block generator for
@@ -203,7 +203,7 @@ func GenerateChain(config *params.ChainConfig, parent *types.Block, engine conse
 
 		if b.engine != nil {
 			block, _ := b.engine.Finalize(b.chainReader, b.header, statedb, b.txs, b.uncles, b.receipts)
-			// Write state changes to db
+			// Write state changes to Db
 			root, err := statedb.Commit(config.IsEIP158(b.header.Number))
 			if err != nil {
 				panic(fmt.Sprintf("state write error: %v", err))

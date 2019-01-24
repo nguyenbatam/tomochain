@@ -60,19 +60,19 @@ var (
 	bloomBitsPrefix     = []byte("B") // bloomBitsPrefix + bit (uint16 big endian) + section (uint64 big endian) + hash -> bloom bits
 
 	preimagePrefix = "secure-key-"              // preimagePrefix + hash -> preimage
-	configPrefix   = []byte("ethereum-config-") // config prefix for the db
+	configPrefix   = []byte("ethereum-config-") // config prefix for the Db
 
 	// Chain index prefixes (use `i` + single byte to avoid mixing data types).
 	BloomBitsIndexPrefix = []byte("iB") // BloomBitsIndexPrefix is the data table of a chain indexer to track its progress
 
-	// used by old db, now only used for conversion
+	// used by old Db, now only used for conversion
 	oldReceiptsPrefix = []byte("receipts-")
 	oldTxMetaSuffix   = []byte{0x01}
 
 	ErrChainConfigNotFound = errors.New("ChainConfig not found") // general config not found error
 
-	preimageCounter    = metrics.NewRegisteredCounter("db/preimage/total", nil)
-	preimageHitCounter = metrics.NewRegisteredCounter("db/preimage/hits", nil)
+	preimageCounter    = metrics.NewRegisteredCounter("Db/preimage/total", nil)
+	preimageHitCounter = metrics.NewRegisteredCounter("Db/preimage/hits", nil)
 )
 
 // TxLookupEntry is a positional metadata to help looking up the data content of
@@ -579,7 +579,7 @@ func WritePreimages(db ethdb.Database, number uint64, preimages map[common.Hash]
 	return nil
 }
 
-// GetBlockChainVersion reads the version number from db.
+// GetBlockChainVersion reads the version number from Db.
 func GetBlockChainVersion(db DatabaseReader) int {
 	var vsn uint
 	enc, _ := db.Get([]byte("BlockchainVersion"))
@@ -587,7 +587,7 @@ func GetBlockChainVersion(db DatabaseReader) int {
 	return int(vsn)
 }
 
-// WriteBlockChainVersion writes vsn as the version number to db.
+// WriteBlockChainVersion writes vsn as the version number to Db.
 func WriteBlockChainVersion(db ethdb.Putter, vsn int) {
 	enc, _ := rlp.EncodeToBytes(uint(vsn))
 	db.Put([]byte("BlockchainVersion"), enc)

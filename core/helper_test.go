@@ -79,7 +79,7 @@ func (tm *TestManager) Db() ethdb.Database {
 func NewTestManager() *TestManager {
 	db, err := ethdb.NewMemDatabase()
 	if err != nil {
-		fmt.Println("Could not create mem-db, failing")
+		fmt.Println("Could not create mem-Db, failing")
 		return nil
 	}
 

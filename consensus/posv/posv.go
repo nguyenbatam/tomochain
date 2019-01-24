@@ -225,8 +225,8 @@ type Posv struct {
 	signFn clique.SignerFn // Signer function to authorize hashes with
 	lock   sync.RWMutex    // Protects the signer fields
 
-	BlockSigners  *lru.Cache
-	HookReward    func(chain consensus.ChainReader, state *state.StateDB, header *types.Header) (error, map[string]interface{})
+	BlockSigners *lru.Cache
+	HookReward   func(chain consensus.ChainReader, state *state.StateDB, header *types.Header) (error, map[string]interface{})
 	HookPenalty   func(chain consensus.ChainReader, blockNumberEpoc uint64) ([]common.Address, error)
 	HookValidator func(header *types.Header, signers []common.Address) ([]byte, error)
 	HookVerifyMNs func(header *types.Header, signers []common.Address) error
@@ -1027,24 +1027,18 @@ func (c *Posv) GetMasternodesFromCheckpointHeader(preCheckpointHeader *types.Hea
 
 func (c *Posv) CacheData(header *types.Header, txs []*types.Transaction, receipts []*types.Receipt) error {
 	var signTxs []*types.Transaction
-	for _, tx := range txs {
+	for i, tx := range txs {
 		if tx.IsSigningTransaction() {
 			var b uint
-			for _, r := range receipts {
-				if r.TxHash == tx.Hash() {
-					if len(r.PostState) > 0 {
-						b = types.ReceiptStatusSuccessful
-					} else {
-						b = r.Status
-					}
-					break
-				}
+			r := receipts[i]
+			if len(r.PostState) > 0 {
+				b = types.ReceiptStatusSuccessful
+			} else {
+				b = r.Status
 			}
-
 			if b == types.ReceiptStatusFailed {
 				continue
 			}
-
 			signTxs = append(signTxs, tx)
 		}
 	}
