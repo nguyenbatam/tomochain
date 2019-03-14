@@ -35,8 +35,8 @@ import (
 	"github.com/ethereum/go-ethereum/internal/debug"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/node"
-	"github.com/ethereum/go-ethereum/tomox"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum/go-ethereum/tomox"
 	whisper "github.com/ethereum/go-ethereum/whisper/whisperv6"
 	"github.com/naoina/toml"
 )
@@ -132,6 +132,7 @@ func makeConfigNode(ctx *cli.Context) (*node.Node, tomoConfig) {
 	cfg := tomoConfig{
 		Eth:         eth.DefaultConfig,
 		Shh:         whisper.DefaultConfig,
+		TomoX:       tomox.DefaultConfig,
 		Node:        defaultNodeConfig(),
 		Dashboard:   dashboard.DefaultConfig,
 		StakeEnable: true,
@@ -200,6 +201,7 @@ func makeConfigNode(ctx *cli.Context) (*node.Node, tomoConfig) {
 	}
 
 	utils.SetShhConfig(ctx, stack, &cfg.Shh)
+	utils.SetTomoXConfig(ctx, &cfg.TomoX)
 	utils.SetDashboardConfig(ctx, &cfg.Dashboard)
 
 	return stack, cfg
