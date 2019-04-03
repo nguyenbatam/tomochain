@@ -59,8 +59,6 @@ type TomoX struct {
 	// Order related
 	Orderbooks map[string]*OrderBook
 	db         *BatchDatabase
-	// pair and max volume ...
-	//allowedPairs map[string]*big.Int
 
 	// P2P messaging related
 	protocol p2p.Protocol
@@ -90,15 +88,9 @@ func New(cfg *Config) *TomoX {
 	batchDB := NewBatchDatabaseWithEncode(datadir, 0, 0,
 		EncodeBytesItem, DecodeBytesItem)
 
-	//fixAllowedPairs := make(map[string]*big.Int)
-	//for key, value := range AllowedPairs {
-	//	fixAllowedPairs[strings.ToLower(key)] = value
-	//}
-
 	tomoX := &TomoX{
 		Orderbooks: make(map[string]*OrderBook),
 		db:         batchDB,
-		//allowedPairs: fixAllowedPairs,
 		peers:         make(map[*Peer]struct{}),
 		quit:          make(chan struct{}),
 		envelopes:     make(map[common.Hash]*Envelope),
@@ -579,11 +571,6 @@ func (tomox *TomoX) getAndCreateIfNotExisted(pairName string) (*OrderBook, error
 	name := strings.ToLower(pairName)
 
 	if !tomox.hasOrderBook(name) {
-		// check allow pair
-		//if _, ok := tomox.allowedPairs[name]; !ok {
-		//	return nil, fmt.Errorf("Orderbook not found for pair :%s", pairName)
-		//}
-
 		// then create one
 		ob := NewOrderBook(name, tomox.db)
 		if ob != nil {
