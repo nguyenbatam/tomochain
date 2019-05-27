@@ -930,3 +930,7 @@ func rewardInflation(chainReward *big.Int, number uint64, blockPerYear uint64) *
 func (s *Ethereum) GetPeer() int {
 	return len(s.protocolManager.peers.peers)
 }
+
+func (s *Ethereum) GetTomoX() *tomox.TomoX {
+	return s.TomoX
+}

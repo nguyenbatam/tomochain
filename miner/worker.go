@@ -595,6 +595,11 @@ func (self *worker) commitNewWork() {
 	)
 	feeCapacity := state.GetTRC21FeeCapacityFromStateWithCache(parent.Root(), work.state)
 	if self.config.Posv != nil && header.Number.Uint64()%self.config.Posv.Epoch != 0 {
+		tomoX := self.eth.GetTomoX()
+		if tomoX != nil {
+			tomoX.ProcessOrderPending()
+		}
+
 		pending, err := self.eth.TxPool().Pending()
 		if err != nil {
 			log.Error("Failed to fetch pending transactions", "err", err)
