@@ -738,7 +738,23 @@ func (tomox *TomoX) updateOrderCount(orderCount map[common.Address]*big.Int) err
 func (tomox *TomoX) CancelOrder(order *OrderItem) error {
 	ob, err := tomox.getAndCreateIfNotExisted(order.PairName)
 	if ob != nil && err == nil {
-		return ob.CancelOrder(order)
+
+		// remove order from pending list
+		if err := tomox.removePendingHash(order.Hash); err != nil {
+			return err
+		}
+		if o := tomox.getOrderPending(order.Hash); o != nil {
+			if err := tomox.removeOrderPending(order.Hash); err != nil {
+				return err
+			}
+		}
+
+		// remove order from ordertree
+		if err := ob.CancelOrder(order); err != nil {
+			if err == ErrDoesNotExist {
+				return nil
+			}
+		}
 	}
 
 	return err
@@ -779,30 +795,38 @@ func (tomox *TomoX) ProcessOrderPending() map[common.Hash]TxDataMatch {
 						obOld, err := ob.Hash()
 						if err != nil {
 							log.Error("Fail to get orderbook hash old", "err", err)
+							continue
 						}
 						askOld, err := ob.Asks.Hash()
 						if err != nil {
 							log.Error("Fail to get ask tree hash old", "err", err)
+							continue
 						}
 						bidOld, err := ob.Bids.Hash()
 						if err != nil {
 							log.Error("Fail to get bid tree hash old", "err", err)
+							continue
 						}
 
-						// Process ME.
-						trades, _ := ob.ProcessOrder(order, true)
-
+						trades, _, err := ob.ProcessOrder(order, true)
+						if err != nil {
+							log.Error("Can't process order", "order", order, "err", err)
+							continue
+						}
 						obNew, err := ob.Hash()
 						if err != nil {
 							log.Error("Fail to get orderbook hash new", "err", err)
+							continue
 						}
 						askNew, err := ob.Asks.Hash()
 						if err != nil {
 							log.Error("Fail to get ask tree hash new", "err", err)
+							continue
 						}
 						bidNew, err := ob.Bids.Hash()
 						if err != nil {
 							log.Error("Fail to get bid tree hash new", "err", err)
+							continue
 						}
 
 						value, err := EncodeBytesItem(order)
@@ -924,6 +948,7 @@ func (tomox *TomoX) removePendingHash(orderHash common.Hash) error {
 	for i, v := range pendingHashes {
 		if v == orderHash {
 			pendingHashes = append(pendingHashes[:i], pendingHashes[i+1:]...)
+			break
 		}
 	}
 	// Store pending hash.
@@ -935,46 +960,43 @@ func (tomox *TomoX) removePendingHash(orderHash common.Hash) error {
 	return nil
 }
 
-func (tomox *TomoX) getPendingHashes()
-[]common.Hash{
-var (
-val interface{}
-err error
-)
-key := []byte(pendingHash)
-if ok, _ := tomox.db.Has(key); ok{
-if val, err = tomox.db.Get(key, val); err != nil{
-log.Error("Fail to get pending hash", "err", err)
+func (tomox *TomoX) getPendingHashes() []common.Hash {
+	var (
+		val interface{}
+		err error
+	)
+	key := []byte(pendingHash)
+	if ok, _ := tomox.db.Has(key); ok {
+		if val, err = tomox.db.Get(key, val); err != nil {
+			log.Error("Fail to get pending hash", "err", err)
+			return []common.Hash{}
+		}
+	}
 
-return []common.Hash{}
-}
-}
+	if val == nil {
+		return []common.Hash{}
+	}
+	pendingHashes := val.([]common.Hash)
 
-if val == nil{
-return []common.Hash{}
-}
-pendingHashes := val.([]common.Hash)
-
-return pendingHashes
+	return pendingHashes
 }
 
-func (tomox *TomoX) addProcessedOrderHash(orderHash common.Hash, limit
-int) error{
-key := []byte(processedHash)
+func (tomox *TomoX) addProcessedOrderHash(orderHash common.Hash, limit int) error {
+	key := []byte(processedHash)
 
-processedHashes := tomox.getProcessedOrderHash()
-if len(processedHashes) >= limit{
-// Remove first.
-processedHashes = processedHashes[1:]
-}
-processedHashes = append(processedHashes, orderHash)
+	processedHashes := tomox.getProcessedOrderHash()
+	if len(processedHashes) >= limit {
+		// Remove first.
+		processedHashes = processedHashes[1:]
+	}
+	processedHashes = append(processedHashes, orderHash)
 
-if err := tomox.db.Put(key, processedHashes); err != nil{
-log.Error("Fail to save processed order hashes", "err", err)
-return err
-}
+	if err := tomox.db.Put(key, processedHashes); err != nil {
+		log.Error("Fail to save processed order hashes", "err", err)
+		return err
+	}
 
-return nil
+	return nil
 }
 
 func (tomox *TomoX) existProcessedOrderHash(orderHash common.Hash) bool {
