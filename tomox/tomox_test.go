@@ -15,12 +15,11 @@ import (
 
 func buildOrder() *OrderItem {
 	rand.Seed(time.Now().UTC().UnixNano())
-	price, _ := new(big.Int).SetString("250000000000000000000000000000000000000", 10)
 	v := []byte(string(rand.Intn(999)))
 	lstBuySell := []string{"BUY", "SELL"}
 	order := &OrderItem{
 		Quantity:        new(big.Int).SetUint64(uint64(rand.Intn(10)) * 1000000000000000000),
-		Price:           price,
+		Price:           new(big.Int).SetUint64(uint64(rand.Intn(10)) * 100000000000000000),
 		ExchangeAddress: common.StringToAddress("0x0000000000000000000000000000000000000000"),
 		UserAddress:     common.StringToAddress("0xf069080f7acb9a6705b4a51f84d9adc67b921bdf"),
 		BaseToken:       common.StringToAddress("0x9a8531c62d02af08cf237eb8aecae9dbcb69b6fd"),
@@ -82,7 +81,7 @@ func TestCreateOrder(t *testing.T) {
 }
 
 func TestCreate10Orders(t *testing.T) {
-	for i := 0; i <= 10; i++ {
+	for i := 0; i <= 20; i++ {
 		TestCreateOrder(t)
 		time.Sleep(1 * time.Second)
 	}
@@ -219,55 +218,35 @@ func TestTomoX_GetActivePairs(t *testing.T) {
 	}
 }
 
-func TestTomoX_VerifyOrderNonce(t *testing.T) {
-	testDir := "test_VerifyOrderNonce"
+func TestEncodeDecodeTXMatch(t *testing.T) {
+	var trades []map[string]string
+	var txMatches map[common.Hash][]map[string]string
+	var decodeMatches map[common.Hash][]map[string]string
 
-	tomox := &TomoX{
-		orderCount: make(map[common.Address]*big.Int),
-	}
-	tomox.db = NewLDBEngine(&Config{
-		DataDir:  testDir,
-		DBEngine: "leveldb",
-	})
-	defer os.RemoveAll(testDir)
+	transactionRecord := make(map[string]string)
+	transactionRecord["price"] = new(big.Int).SetUint64(uint64(25) * 100000000000000000).String()
+	transactionRecord["quantity"] = new(big.Int).SetUint64(uint64(12) * 1000000000000000000).String()
+	trades = append(trades, transactionRecord)
 
-	// initial: orderCount is empty
-	// verifyOrderNonce should PASS
-	order := &OrderItem{
-		Nonce:       big.NewInt(1),
-		UserAddress: common.StringToAddress("0x00011"),
-	}
-	if err := tomox.verifyOrderNonce(order); err != nil {
-		t.Error("Expected: no error")
-	}
+	transactionRecord = make(map[string]string)
+	transactionRecord["price"] = new(big.Int).SetUint64(uint64(14) * 1000000000000000000).String()
+	transactionRecord["quantity"] = new(big.Int).SetUint64(uint64(15) * 1000000000000000000).String()
+	trades = append(trades, transactionRecord)
 
-	storedOrderCountMap := make(map[common.Address]*big.Int)
-	storedOrderCountMap[common.StringToAddress("0x00011")] = big.NewInt(5)
-	tomox.updateOrderCount(storedOrderCountMap)
-
-	// set duplicated nonce
-	order = &OrderItem{
-		Nonce:       big.NewInt(5), //duplicated nonce
-		UserAddress: common.StringToAddress("0x00011"),
-	}
-	if err := tomox.verifyOrderNonce(order); err != ErrOrderNonceTooLow {
-		t.Error("Expected error: " + ErrOrderNonceTooLow.Error())
+	txMatches = make(map[common.Hash][]map[string]string)
+	hash := common.StringToHash(string(rand.Intn(1000)))
+	txMatches[hash] = trades
+	encode, err := json.Marshal(txMatches)
+	if err != nil {
+		t.Error("Fail to marshal txMatches", "err", err)
 	}
 
-	// set nonce too high
-	order.Nonce = big.NewInt(110)
-	if err := tomox.verifyOrderNonce(order); err != ErrOrderNonceTooHigh {
-		t.Error("Expected error: " + ErrOrderNonceTooHigh.Error())
+	err = json.Unmarshal(encode, &decodeMatches)
+	if err != nil {
+		t.Error("Fail to unmarshal txMatches", "err", err)
 	}
 
-	order.Nonce = big.NewInt(10)
-	if err := tomox.verifyOrderNonce(order); err != nil {
-		t.Error("Expected: no error")
-	}
-
-	// test new account
-	order.UserAddress = common.StringToAddress("0x0022")
-	if err := tomox.verifyOrderNonce(order); err != nil {
-		t.Error("Expected: no error")
+	if _, ok := decodeMatches[hash]; ! ok {
+		t.Error("marshal and unmarshal txMatches not valid", "mashal", txMatches[hash], "unmarshal", decodeMatches[hash])
 	}
 }
