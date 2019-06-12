@@ -116,50 +116,7 @@ func TestCancelOrder(t *testing.T) {
 	}
 }
 
-func TestDBPending(t *testing.T) {
-	testDir := "TestDBPending"
-
-	tomox := &TomoX{
-		Orderbooks:  map[string]*OrderBook{},
-		activePairs: make(map[string]bool),
-		db: NewLDBEngine(&Config{
-			DataDir:  testDir,
-			DBEngine: "leveldb",
-		}),
-	}
-	defer os.RemoveAll(testDir)
-
-	if pHashes := tomox.getPendingHashes(); len(pHashes) != 0 {
-		t.Error("Expected: no pending hash", "Actual:", len(pHashes))
-	}
-
-	var hash common.Hash
-	hash = common.StringToHash("0x0000000000000000000000000000000000000000")
-	tomox.addPendingHash(hash)
-	hash = common.StringToHash("0x0000000000000000000000000000000000000001")
-	tomox.addPendingHash(hash)
-	hash = common.StringToHash("0x0000000000000000000000000000000000000002")
-	tomox.addPendingHash(hash)
-	if pHashes := tomox.getPendingHashes(); len(pHashes) != 3 {
-		t.Error("Expected: 3 pending hash", "Actual:", len(pHashes))
-	}
-
-	// Test remove hash
-	hash = common.StringToHash("0x0000000000000000000000000000000000000002")
-	tomox.removePendingHash(hash)
-	if pHashes := tomox.getPendingHashes(); len(pHashes) != 2 {
-		t.Error("Expected: 2 pending hash", "Actual:", len(pHashes))
-	}
-
-	order := buildOrder()
-	tomox.addOrderPending(order)
-	od := tomox.getOrderPending(order.Hash)
-	if order.Hash.String() != od.Hash.String() {
-		t.Error("Fail to add order pending", "orderOld", order, "orderNew", od)
-	}
-}
-
-func TestTomoX_GetActivePairs(t *testing.T) {
+func TestTomoX_listTokenPairs(t *testing.T) {
 	testDir := "TestTomoX_GetActivePairs"
 
 	tomox := &TomoX{
@@ -228,10 +185,11 @@ func TestEncodeDecodeTXMatch(t *testing.T) {
 	transactionRecord["quantity"] = new(big.Int).SetUint64(uint64(12) * 1000000000000000000).String()
 	trades = append(trades, transactionRecord)
 
-	transactionRecord = make(map[string]string)
-	transactionRecord["price"] = new(big.Int).SetUint64(uint64(14) * 1000000000000000000).String()
-	transactionRecord["quantity"] = new(big.Int).SetUint64(uint64(15) * 1000000000000000000).String()
-	trades = append(trades, transactionRecord)
+	storedOrderCountMap := make(map[common.Address]*big.Int)
+	storedOrderCountMap[common.StringToAddress("0x00011")] = big.NewInt(5)
+	if err := tomox.updateOrderCount(storedOrderCountMap); err != nil {
+		t.Error("Failed to save orderCount", "err", err)
+	}
 
 	order := buildOrder()
 	value, err := EncodeBytesItem(order)
