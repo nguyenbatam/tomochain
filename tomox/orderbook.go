@@ -50,7 +50,7 @@ type OrderBookItemRecordBSON struct {
 
 // OrderBook : list of orders
 type OrderBook struct {
-	db   OrderDao   // this is for orderBook
+	db   OrderDao // this is for orderBook
 	Bids *OrderTree `json:"bids"`
 	Asks *OrderTree `json:"asks"`
 	Item *OrderBookItem
@@ -431,4 +431,42 @@ func (orderBook *OrderBook) VolumeAtPrice(side string, price *big.Int) *big.Int 
 	}
 
 	return volume
+}
+
+// Save order pending into orderbook tree.
+func (orderBook *OrderBook) SaveOrderPending(order *OrderItem) error {
+	zero := Zero()
+	orderBook.UpdateTime()
+	// if we do not use auto-increment orderid, we must set price slot to avoid conflict
+	orderBook.Item.NextOrderID++
+
+	if order.Side == Bid {
+		if order.Quantity.Cmp(zero) > 0 {
+			order.OrderID = orderBook.Item.NextOrderID
+			if err := orderBook.PendingBids.InsertOrder(order); err != nil {
+				return err
+			}
+		}
+	} else {
+		if order.Quantity.Cmp(zero) > 0 {
+			order.OrderID = orderBook.Item.NextOrderID
+			if err := orderBook.PendingAsks.InsertOrder(order); err != nil {
+				return err
+			}
+		}
+	}
+	// save changes to orderbook
+	if err := orderBook.Save(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (orderBook *OrderBook) Hash() (common.Hash, error) {
+	obEncoded, err := EncodeBytesItem(orderBook.Item)
+	if err != nil {
+		return common.Hash{}, err
+	}
+	return common.BytesToHash(obEncoded), nil
 }
