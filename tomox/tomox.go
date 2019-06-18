@@ -781,7 +781,9 @@ func (tomox *TomoX) ProcessOrderPending() map[common.Hash]TxDataMatch {
 							trades: trades,
 						}
 					}
-					tomox.addProcessedOrderHash(orderHash, 1000)
+					if err := tomox.addProcessedOrderHash(orderHash, 1000); err != nil {
+						log.Error("Fail to save processed order hash", "err", err)
+					}
 				}
 
 				// Remove order from db pending.
@@ -912,7 +914,7 @@ func (tomox *TomoX) getPendingHashes() []common.Hash {
 	return pendingHashes
 }
 
-func (tomox *TomoX) addProcessedOrderHash(orderHash common.Hash, limit int) []common.Hash {
+func (tomox *TomoX) addProcessedOrderHash(orderHash common.Hash, limit int) error {
 	key := []byte(processedHash)
 
 	processedHashes := tomox.getProcessedOrderHash()
@@ -924,10 +926,10 @@ func (tomox *TomoX) addProcessedOrderHash(orderHash common.Hash, limit int) []co
 
 	if err := tomox.db.Put(key, processedHashes); err != nil {
 		log.Error("Fail to save processed order hashes", "err", err)
-		return nil
+		return err
 	}
 
-	return processedHashes
+	return nil
 }
 
 func (tomox *TomoX) existProcessedOrderHash(orderHash common.Hash) bool {
