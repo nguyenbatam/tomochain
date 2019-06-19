@@ -20,6 +20,7 @@ package core
 import (
 	"errors"
 	"fmt"
+	"github.com/ethereum/go-ethereum/tomox"
 	"io"
 	"math/big"
 	"os"
@@ -1224,6 +1225,11 @@ func (bc *BlockChain) insertChain(chain types.Blocks) (int, []interface{}, []*ty
 			bc.reportBlock(block, receipts, err)
 			return i, events, coalescedLogs, err
 		}
+
+		if err := bc.snapshotTomoX(); err != nil {
+			log.Error("Failed to snapshot tomox", "err", err)
+		}
+
 		proctime := time.Since(bstart)
 
 		// Write the block to the chain and get the status.
@@ -1451,6 +1457,11 @@ func (bc *BlockChain) insertBlock(block *types.Block) ([]interface{}, []*types.L
 	if bc.HasBlockAndState(block.Hash(), block.NumberU64()) {
 		return events, coalescedLogs, nil
 	}
+
+	if err := bc.snapshotTomoX(); err != nil {
+		log.Error("Failed to snapshot tomox", "err", err)
+	}
+
 	status, err := bc.WriteBlockWithState(block, result.receipts, result.state)
 
 	if err != nil {
@@ -1951,6 +1962,27 @@ func (bc *BlockChain) UpdateM1() error {
 			return err
 		}
 		log.Info("Masternodes are ready for the next epoch")
+	}
+	return nil
+}
+
+func (bc *BlockChain) snapshotTomoX() error {
+	var (
+		tomoX  *tomox.TomoX
+		engine *posv.Posv
+	)
+
+	if bc.chainConfig.Posv == nil {
+		return tomox.ErrUnsupportedEngine
+	}
+	engine = bc.Engine().(*posv.Posv)
+	if tomoX = engine.GetTomoXService(); tomoX == nil {
+		return tomox.ErrTomoXServiceNotFound
+	}
+	if bc.CurrentHeader().Number.Uint64() % common.TomoXSnapshotInterval == 0 {
+		if err := tomoX.Snapshot(bc.CurrentHeader().Hash()); err != nil {
+			return err
+		}
 	}
 	return nil
 }
