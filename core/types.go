@@ -30,7 +30,7 @@ import (
 //
 type Validator interface {
 	// ValidateBody validates the given block's content.
-	ValidateBody(block *types.Block) error
+	ValidateBody(block *types.Block) (error, []common.Hash)
 
 	// ValidateState validates the given statedb and optionally the receipts and
 	// gas used.
