@@ -183,6 +183,11 @@ func TestTomoX_GetActivePairs(t *testing.T) {
 		t.Error("Failed to save active pairs", err)
 	}
 
+	// try to commit to see if there is any error with rlp encode
+	if err := tomox.db.Commit(); err != nil {
+		t.Errorf(err.Error())
+	}
+
 	// a node has just been restarted, haven't inserted any order yet
 	// in memory: there is no activePairsKey
 	// in db: there are 2 active pairs
@@ -295,5 +300,64 @@ func TestProcessedHash(t *testing.T) {
 	}
 	if ! tomox.existProcessedOrderHash(common.StringToHash("0x0000000000000000000000000000000000000004")) {
 		t.Error("Processed hash not exist")
+	}
+}
+func TestTomoX_VerifyOrderNonce(t *testing.T) {
+	testDir := "test_VerifyOrderNonce"
+
+	tomox := &TomoX{
+		orderCount: make(map[common.Address]*big.Int),
+	}
+	tomox.db = NewLDBEngine(&Config{
+		DataDir:  testDir,
+		DBEngine: "leveldb",
+	})
+	defer os.RemoveAll(testDir)
+
+	// initial: orderCount is empty
+	// verifyOrderNonce should PASS
+	order := &OrderItem{
+		Nonce:       big.NewInt(1),
+		UserAddress: common.StringToAddress("0x00011"),
+	}
+	if err := tomox.verifyOrderNonce(order); err != nil {
+		t.Error("Expected: no error")
+	}
+
+	storedOrderCountMap := make(map[common.Address]*big.Int)
+	storedOrderCountMap[common.StringToAddress("0x00011")] = big.NewInt(5)
+	if err := tomox.updateOrderCount(storedOrderCountMap); err != nil {
+		t.Error("Failed to save orderCount", "err", err)
+	}
+
+	// try to commit to see if there is any error with rlp encode
+	if err := tomox.db.Commit(); err != nil {
+		t.Error(err)
+	}
+
+	// set duplicated nonce
+	order = &OrderItem{
+		Nonce:       big.NewInt(5), //duplicated nonce
+		UserAddress: common.StringToAddress("0x00011"),
+	}
+	if err := tomox.verifyOrderNonce(order); err != ErrOrderNonceTooLow {
+		t.Error("Expected error: " + ErrOrderNonceTooLow.Error())
+	}
+
+	// set nonce too high
+	order.Nonce = big.NewInt(110)
+	if err := tomox.verifyOrderNonce(order); err != ErrOrderNonceTooHigh {
+		t.Error("Expected error: " + ErrOrderNonceTooHigh.Error())
+	}
+
+	order.Nonce = big.NewInt(10)
+	if err := tomox.verifyOrderNonce(order); err != nil {
+		t.Error("Expected: no error")
+	}
+
+	// test new account
+	order.UserAddress = common.StringToAddress("0x0022")
+	if err := tomox.verifyOrderNonce(order); err != nil {
+		t.Error("Expected: no error")
 	}
 }
