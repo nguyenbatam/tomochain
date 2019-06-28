@@ -95,6 +95,7 @@ type TomoX struct {
 	syncAllowance int // maximum time in seconds allowed to process the tomoX-related messages
 
 	lightClient bool // indicates is this node is pure light client (does not forward any messages)
+	sdkNode bool
 
 	statsMu sync.Mutex // guard stats
 
@@ -136,8 +137,10 @@ func New(cfg *Config) *TomoX {
 	switch cfg.DBEngine {
 	case "leveldb":
 		tomoX.db = NewLDBEngine(cfg)
+		tomoX.sdkNode = false
 	case "mongodb":
 		tomoX.db = NewMongoDBEngine(cfg)
+		tomoX.sdkNode = true
 	default:
 		log.Crit("wrong database engine, only accept either leveldb or mongodb")
 	}
@@ -169,6 +172,14 @@ func New(cfg *Config) *TomoX {
 func (tomox *TomoX) Overflow() bool {
 	val, _ := tomox.settings.Load(overflowIdx)
 	return val.(bool)
+}
+
+func (tomox *TomoX) IsSDKNode() bool {
+	return tomox.sdkNode
+}
+
+func (tomox *TomoX) GetDB() OrderDao {
+	return tomox.db
 }
 
 // APIs returns the RPC descriptors the TomoX implementation offers
