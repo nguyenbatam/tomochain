@@ -19,6 +19,7 @@ import (
 	"github.com/ethereum/go-ethereum/rpc"
 	"golang.org/x/sync/syncmap"
 	"gopkg.in/fatih/set.v0"
+	"encoding/hex"
 )
 
 const (
@@ -891,8 +892,9 @@ func (tomox *TomoX) getOrderPending(orderHash common.Hash) *OrderItem {
 	)
 	prefix := []byte(pendingPrefix)
 	key := append(prefix, orderHash.Bytes()...)
+	log.Debug("Get order pending", "order", orderHash, "key", hex.EncodeToString(key))
 	if ok, _ := tomox.db.Has(key); ok {
-		val, err = tomox.db.Get(key, val)
+		val, err = tomox.db.Get(key, &OrderItem{})
 		if err != nil {
 			log.Error("Fail to get order pending", "err", err)
 
@@ -911,6 +913,7 @@ func (tomox *TomoX) addOrderPending(order *OrderItem) error {
 	prefix := []byte(pendingPrefix)
 	key := append(prefix, order.Hash.Bytes()...)
 	// Insert new order pending.
+	log.Debug("Add order pending", "order", order, "key", hex.EncodeToString(key))
 	if err := tomox.db.Put(key, order); err != nil {
 		log.Error("Fail to save order pending", "err", err)
 		return err
@@ -920,9 +923,9 @@ func (tomox *TomoX) addOrderPending(order *OrderItem) error {
 }
 
 func (tomox *TomoX) removeOrderPending(orderHash common.Hash) error {
-	log.Debug("Remove order pending", "orderHash", orderHash)
 	prefix := []byte(pendingPrefix)
 	key := append(prefix, orderHash.Bytes()...)
+	log.Debug("Remove order pending", "orderHash", orderHash, "key", hex.EncodeToString(key))
 	if tomox.IsSDKNode() {
 		log.Debug("Update order status to CANCELLED", "orderHash", orderHash)
 		data, err := tomox.db.Get(key, &OrderItem{})
@@ -953,6 +956,7 @@ func (tomox *TomoX) removeOrderPending(orderHash common.Hash) error {
 }
 
 func (tomox *TomoX) addPendingHash(orderHash common.Hash) error {
+	log.Debug("Add pending hash", "orderHash", orderHash)
 	pendingHashes := tomox.getPendingHashes()
 	if pendingHashes == nil {
 		return nil
