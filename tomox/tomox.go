@@ -95,7 +95,7 @@ type TomoX struct {
 	syncAllowance int // maximum time in seconds allowed to process the tomoX-related messages
 
 	lightClient bool // indicates is this node is pure light client (does not forward any messages)
-	sdkNode bool
+	sdkNode     bool
 
 	statsMu sync.Mutex // guard stats
 
@@ -665,38 +665,27 @@ func (tomox *TomoX) getAndCreateIfNotExisted(pairName string) (*OrderBook, error
 }
 
 func (tomox *TomoX) InsertOrder(order *OrderItem) error {
-	ob, err := tomox.getAndCreateIfNotExisted(order.PairName)
-	if err != nil {
-		return err
-	}
 
-	if ob != nil {
-		// insert
-		if order.OrderID == 0 {
-			if err := tomox.verifyOrderNonce(order); err != nil {
-				return err
-			}
-			// Save order into orderbook tree.
-			if err := tomox.addPendingHash(order.Hash); err != nil {
-				return err
-			}
-			if err := tomox.addOrderPending(order); err != nil {
-				return err
-			}
-			f
-			log.Info("Process saved")
-			tomox.orderCount[order.UserAddress] = order.Nonce
-			if err := tomox.updateOrderCount(tomox.orderCount); err != nil {
-				log.Error("Failed to save orderCount", "err", err)
-			}
-
-		} else {
-			log.Info("Update order")
-			if err := ob.UpdateOrder(order); err != nil {
-				log.Error("Update order failed", "order", order, "err", err)
-				return err
-			}
+	if order.OrderID == 0 {
+		if err := tomox.verifyOrderNonce(order); err != nil {
+			return err
 		}
+		// Save order into orderbook tree.
+		if err := tomox.addPendingHash(order.Hash); err != nil {
+			return err
+		}
+		if err := tomox.addOrderPending(order); err != nil {
+			return err
+		}
+
+		log.Info("Process saved")
+		tomox.orderCount[order.UserAddress] = order.Nonce
+		if err := tomox.updateOrderCount(tomox.orderCount); err != nil {
+			log.Error("Failed to save orderCount", "err", err)
+		}
+
+	} else {
+		log.Warn("Order already exists", "orderhash", order.Hash)
 	}
 	return nil
 }
@@ -734,8 +723,8 @@ func (tomox *TomoX) verifyOrderNonce(order *OrderItem) error {
 func (tomox *TomoX) loadOrderCount() error {
 	var (
 		orderCount map[common.Address]*big.Int
-		err error
-		val interface{}
+		err        error
+		val        interface{}
 	)
 	val, err = tomox.db.Get([]byte(orderCountKey), &[]byte{})
 	if err != nil {
@@ -1097,8 +1086,8 @@ func (tomox *TomoX) updatePairs(pairs map[string]bool) error {
 func (tomox *TomoX) loadPairs() (map[string]bool, error) {
 	var (
 		pairs map[string]bool
-		val interface{}
-		err error
+		val   interface{}
+		err   error
 	)
 	val, err = tomox.db.Get([]byte(activePairsKey), &[]byte{})
 	if err != nil {
