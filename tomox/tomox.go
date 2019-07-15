@@ -466,7 +466,7 @@ func (tomox *TomoX) postEvent(envelope *Envelope, isP2P bool) error {
 	}
 
 	if order.Status == Cancel {
-		if err := tomox.CancelOrder(order, true); err != nil {
+		if err := tomox.CancelOrder(order, false); err != nil {
 			log.Error("Can't cancel order", "order", order, "err", err)
 			return err
 		}
@@ -751,7 +751,7 @@ func (tomox *TomoX) updateOrderCount(orderCount map[common.Address]*big.Int) err
 	return nil
 }
 
-func (tomox *TomoX) CancelOrder(order *OrderItem, allowSave bool) error {
+func (tomox *TomoX) CancelOrder(order *OrderItem, dryrun bool) error {
 	ob, err := tomox.getAndCreateIfNotExisted(order.PairName)
 	if ob != nil && err == nil {
 
@@ -766,7 +766,7 @@ func (tomox *TomoX) CancelOrder(order *OrderItem, allowSave bool) error {
 		}
 
 		// remove order from ordertree
-		if err := ob.CancelOrder(order, allowSave); err != nil {
+		if err := ob.CancelOrder(order, dryrun); err != nil {
 			if err == ErrDoesNotExist {
 				return nil
 			}
@@ -824,7 +824,7 @@ func (tomox *TomoX) ProcessOrderPending() map[common.Hash]TxDataMatch {
 							continue
 						}
 
-						trades, _, err := ob.ProcessOrder(order, true, false)
+						trades, _, err := ob.ProcessOrder(order, true, true)
 						if err != nil {
 							log.Error("Can't process order", "order", order, "err", err)
 							continue
@@ -1191,7 +1191,7 @@ func (tomox *TomoX) loadSnapshot(hash common.Hash) error {
 	for pair := range snap.OrderBooks {
 		ob, err = snap.RestoreOrderBookFromSnapshot(tomox.db, pair)
 		if err == nil {
-			if err := ob.Save(true); err != nil {
+			if err := ob.Save(false); err != nil {
 				return err
 			}
 		}
