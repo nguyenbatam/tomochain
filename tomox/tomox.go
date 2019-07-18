@@ -812,9 +812,6 @@ func (tomox *TomoX) ProcessOrderPending() map[common.Hash]TxDataMatch {
 						// if orderbook has been processed before in this block, it should be in dry-run mode
 						// otherwise it's on db
 						ob, err = tomox.getAndCreateIfNotExisted(order.PairName, true)
-						if err != nil {
-							ob, err = tomox.getAndCreateIfNotExisted(order.PairName, false)
-						}
 						if err != nil || ob == nil {
 							log.Error("Fail to get/create orderbook", "order.PairName", order.PairName)
 							continue
@@ -836,7 +833,6 @@ func (tomox *TomoX) ProcessOrderPending() map[common.Hash]TxDataMatch {
 							log.Error("Fail to get bid tree hash old", "err", err)
 							continue
 						}
-
 						trades, _, err := ob.ProcessOrder(order, true, true)
 						if err != nil {
 							log.Error("Can't process order", "order", order, "err", err)
@@ -874,19 +870,6 @@ func (tomox *TomoX) ProcessOrderPending() map[common.Hash]TxDataMatch {
 								BidNew: bidNew,
 							}
 						}
-						if err := tomox.addProcessedOrderHash(orderHash, 1000); err != nil {
-							log.Error("Fail to save processed order hash", "err", err)
-							continue
-						}
-					}
-
-					// Remove order from db pending.
-					if err := tomox.removePendingHash(orderHash); err != nil {
-						log.Error("Fail to remove pending hash", "err", err)
-						continue
-					}
-					if err := tomox.removeOrderPending(orderHash); err != nil {
-						log.Error("Fail to remove order pending", "err", err)
 					}
 				} else {
 					log.Error("Fail to get order pending from db", "hash", orderHash)
