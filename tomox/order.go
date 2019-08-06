@@ -105,7 +105,7 @@ func NewOrder(orderItem *OrderItem, orderListKey []byte) *Order {
 	orderItem.NextOrder = EmptyKey()
 	orderItem.PrevOrder = EmptyKey()
 	orderItem.OrderList = orderListKey
-	// key should be Hash for compatible with smart contract
+	// key should be Price for compatible with smart contract
 	order := &Order{
 		Key:  key,
 		Item: orderItem,

@@ -20,7 +20,6 @@ package trie
 import (
 	"bytes"
 	"fmt"
-
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
@@ -284,6 +283,134 @@ func (t *Trie) insert(n Node, prefix, key []byte, value Node) (bool, Node, error
 	}
 }
 
+func (t *Trie) TryGetBestLeft() ([]byte, error) {
+	value, newroot, didResolve, err := t.tryGetBestLeft(t.root)
+	if err == nil && didResolve {
+		t.root = newroot
+	}
+	return value, err
+}
+
+func (t *Trie) tryGetBestLeft(origNode Node) (value []byte, newnode Node, didResolve bool, err error) {
+	switch n := (origNode).(type) {
+	case nil:
+		return nil, nil, false, nil
+	case ValueNode:
+		return n, n, false, nil
+	case *ShortNode:
+		value, newnode, didResolve, err = t.tryGetBestLeft(n.Val)
+		if err == nil && didResolve {
+			n = n.copy()
+			n.Val = newnode
+			n.flags.gen = t.cachegen
+		}
+		return value, n, didResolve, err
+	case *FullNode:
+		for i := 0; i < len(n.Children); i++ {
+			if n.Children[i] == nil {
+				continue
+			}
+			value, newnode, didResolve, err = t.tryGetBestLeft(n.Children[i])
+			if err == nil && didResolve {
+				n = n.copy()
+				n.flags.gen = t.cachegen
+				n.Children[i] = newnode
+			}
+			return value, n, didResolve, err
+		}
+	case HashNode:
+		child, err := t.resolveHash(n, nil)
+		if err != nil {
+			return nil, n, true, err
+		}
+		value, newnode, _, err := t.tryGetBestLeft(child)
+		return value, newnode, true, err
+	default:
+		return nil, nil, false, fmt.Errorf("%T: invalid node: %v", origNode, origNode)
+	}
+	return nil, nil, false, fmt.Errorf("%T: invalid node: %v", origNode, origNode)
+}
+
+func (t *Trie) TryGetBestRight() ([]byte, error) {
+	value, newroot, didResolve, err := t.tryGetBestRight(t.root)
+	if err == nil && didResolve {
+		t.root = newroot
+	}
+	return value, err
+}
+
+func (t *Trie) tryGetBestRight(origNode Node) (value []byte, newnode Node, didResolve bool, err error) {
+	switch n := (origNode).(type) {
+	case nil:
+		return nil, nil, false, nil
+	case ValueNode:
+		return n, n, false, nil
+	case *ShortNode:
+		value, newnode, didResolve, err = t.tryGetBestRight(n.Val)
+		if err == nil && didResolve {
+			n = n.copy()
+			n.Val = newnode
+			n.flags.gen = t.cachegen
+		}
+		return value, n, didResolve, err
+	case *FullNode:
+		for i := 16; i >= 0; i-- {
+			if n.Children[i] == nil {
+				continue
+			}
+			value, newnode, didResolve, err = t.tryGetBestRight(n.Children[i])
+			if err == nil && didResolve {
+				n = n.copy()
+				n.flags.gen = t.cachegen
+				n.Children[i] = newnode
+			}
+			return value, n, didResolve, err
+		}
+	case HashNode:
+		child, err := t.resolveHash(n, nil)
+		if err != nil {
+			return nil, n, true, err
+		}
+		value, newnode, _, err := t.tryGetBestRight(child)
+		return value, newnode, true, err
+	default:
+		return nil, nil, false, fmt.Errorf("%T: invalid node: %v", origNode, origNode)
+	}
+	return nil, nil, false, fmt.Errorf("%T: invalid node: %v", origNode, origNode)
+}
+
+func (t *Trie) BestRight() (ValueNode, error) {
+	n := t.root
+	for true {
+		if n == nil {
+			return nil, fmt.Errorf("best left not found : root %s ", t.Hash().Hex())
+		}
+		if v, ok := n.(ValueNode); ok {
+			return v, nil
+		}
+		switch node := n.(type) {
+		case *ShortNode:
+			n = node.Val
+		case *FullNode:
+			for i := 16; i >= 0; i-- {
+				if node.Children[i] != nil {
+					n = node.Children[i]
+					break
+				}
+			}
+		case HashNode:
+			decodeNode, err := t.resolveHash(node, nil)
+			if err != nil {
+				return nil, err
+			}
+			n = decodeNode
+		default:
+			return nil, fmt.Errorf("best left not found : root %s ", t.Hash().Hex())
+		}
+	}
+	return nil, nil
+}
+
 // Delete removes any existing value for key from the trie.
 func (t *Trie) Delete(key []byte) {
 	if err := t.TryDelete(key); err != nil {
@@ -430,6 +557,7 @@ func (t *Trie) resolve(n Node, prefix []byte) (Node, error) {
 }
 
 func (t *Trie) resolveHash(n HashNode, prefix []byte) (Node, error) {
+	fmt.Println("resolveHash", n.String())
 	cacheMissCounter.Inc(1)
 
 	hash := common.BytesToHash(n)
@@ -442,10 +570,10 @@ func (t *Trie) resolveHash(n HashNode, prefix []byte) (Node, error) {
 }
 
 // Root returns the root hash of the trie.
-// Deprecated: use Hash instead.
+// Deprecated: use Price instead.
 func (t *Trie) Root() []byte { return t.Hash().Bytes() }
 
-// Hash returns the root hash of the trie. It does not write to the
+// Price returns the root hash of the trie. It does not write to the
 // database and can be used even if the trie doesn't have one.
 func (t *Trie) Hash() common.Hash {
 	hash, cached, _ := t.hashRoot(nil, nil)

@@ -132,7 +132,7 @@ func TestOrderMatching1To1(t *testing.T) {
 		Side:            "BUY",
 		Type:            "LO",
 		PairName:        "0x9a8531c62d02af08cf237eb8aecae9dbcb69b6fd" + "::" + "0x9a8531c62d02af08cf237eb8aecae9dbcb69b6fd",
-		//Hash:            common.StringToHash("0xdc842ea4a239d1a4e56f1e7ba31aab5a307cb643a9f5b89f972f2f5f0d1e7587"),
+		//Price:            common.StringToHash("0xdc842ea4a239d1a4e56f1e7ba31aab5a307cb643a9f5b89f972f2f5f0d1e7587"),
 		Hash: common.StringToHash("1"),
 		Signature: &Signature{
 			V: v[0],
@@ -190,7 +190,7 @@ func TestOrderMatching1To1(t *testing.T) {
 		Side:            "SELL",
 		Type:            "LO",
 		PairName:        "0x9a8531c62d02af08cf237eb8aecae9dbcb69b6fd" + "::" + "0x9a8531c62d02af08cf237eb8aecae9dbcb69b6fd",
-		//Hash:            common.StringToHash("0xdc842ea4a239d1a4e56f1e7ba31aab5a307cb643a9f5b89f972f2f5f0d1e7587"),
+		//Price:            common.StringToHash("0xdc842ea4a239d1a4e56f1e7ba31aab5a307cb643a9f5b89f972f2f5f0d1e7587"),
 		Hash: common.StringToHash("2"),
 		Signature: &Signature{
 			V: v[0],

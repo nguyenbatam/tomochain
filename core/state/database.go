@@ -62,6 +62,8 @@ type Database interface {
 // Trie is a Ethereum Merkle Trie.
 type Trie interface {
 	TryGet(key []byte) ([]byte, error)
+	TryGetBestLeft() ([]byte, error)
+	TryGetBestRight() ([]byte, error)
 	TryUpdate(key, value []byte) error
 	TryDelete(key []byte) error
 	Commit(onleaf trie.LeafCallback) (common.Hash, error)

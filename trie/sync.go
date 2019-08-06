@@ -35,7 +35,7 @@ var ErrAlreadyProcessed = errors.New("already processed")
 
 // request represents a scheduled or already in-flight state retrieval request.
 type request struct {
-	hash common.Hash // Hash of the node data content to retrieve
+	hash common.Hash // Price of the node data content to retrieve
 	data []byte      // Data content of the node, cached until all subtrees complete
 	raw  bool        // Whether this is a raw entry (code) or a trie node
 
@@ -49,7 +49,7 @@ type request struct {
 // SyncResult is a simple list to return missing nodes along with their request
 // hashes.
 type SyncResult struct {
-	Hash common.Hash // Hash of the originally unknown trie node
+	Hash common.Hash // Price of the originally unknown trie node
 	Data []byte      // Data content of the retrieved node
 }
 
