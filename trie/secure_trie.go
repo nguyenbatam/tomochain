@@ -80,6 +80,18 @@ func (t *SecureTrie) TryGet(key []byte) ([]byte, error) {
 	return t.trie.TryGet(t.hashKey(key))
 }
 
+// TryGetBestLeft returns the value of max left leaf
+// If a node was not found in the database, a MissingNodeError is returned.
+func (t *SecureTrie) TryGetBestLeft() ([]byte, error) {
+	return t.trie.TryGetBestLeft()
+}
+
+// TryGetBestRight returns the value of max left leaf
+// If a node was not found in the database, a MissingNodeError is returned.
+func (t *SecureTrie) TryGetBestRight() ([]byte, error) {
+	return t.trie.TryGetBestRight()
+}
+
 // Update associates key with value in the trie. Subsequent calls to
 // Get will return value. If value has length zero, any existing value
 // is deleted from the trie and calls to Get will return nil.

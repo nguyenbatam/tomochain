@@ -21,6 +21,11 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"github.com/davecgh/go-spew/spew"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/ethdb"
+	"github.com/ethereum/go-ethereum/rlp"
 	"io/ioutil"
 	"math/big"
 	"math/rand"
@@ -28,12 +33,6 @@ import (
 	"reflect"
 	"testing"
 	"testing/quick"
-
-	"github.com/davecgh/go-spew/spew"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/ethdb"
-	"github.com/ethereum/go-ethereum/rlp"
 )
 
 func init() {
@@ -64,6 +63,36 @@ func TestNull(t *testing.T) {
 	trie.Update(key, value)
 	if !bytes.Equal(trie.Get(key), value) {
 		t.Fatal("wrong value")
+	}
+	fmt.Println(common.Bytes2Hex(trie.Get(key)))
+}
+func TestTryGetBestLeftRight(t *testing.T) {
+	min := uint64(rand.Intn(100000))
+	max := uint64(rand.Intn(1000000))
+	if min > max {
+		a := min
+		min = max
+		max = a
+	}
+	j := uint64(0)
+	var trie Trie
+	for j = min; j <= max; j++ {
+		key := common.BigToHash(big.NewInt(0).SetUint64(j)).Bytes()
+		trie.Update(key, key)
+	}
+	node, err := trie.TryGetBestLeft()
+	if err != nil {
+		t.Fatal("error when get best left ", err)
+	}
+	if big.NewInt(0).SetBytes(node).Cmp(big.NewInt(0).SetUint64(min)) != 0 {
+		t.Fatal("wrong value min", big.NewInt(0).SetBytes(node))
+	}
+	node, err = trie.TryGetBestRight()
+	if err != nil {
+		t.Fatal("error when get best right ", err)
+	}
+	if big.NewInt(0).SetBytes(node).Cmp(big.NewInt(0).SetUint64(max)) != 0 {
+		t.Fatal("wrong value max ", big.NewInt(0).SetBytes(node))
 	}
 }
 

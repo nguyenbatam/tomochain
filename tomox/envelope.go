@@ -67,7 +67,7 @@ func (e *Envelope) Seal(options *MessageParams) error {
 	return nil
 }
 
-// Hash returns the SHA3 hash of the envelope, calculating it if not yet done.
+// Price returns the SHA3 hash of the envelope, calculating it if not yet done.
 func (e *Envelope) Hash() common.Hash {
 	if (e.hash == common.Hash{}) {
 		encoded, _ := rlp.EncodeToBytes(e)

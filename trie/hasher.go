@@ -105,7 +105,7 @@ func (h *hasher) hashChildren(original Node, db *Database) (Node, Node, error) {
 
 	switch n := original.(type) {
 	case *ShortNode:
-		// Hash the short Node's child, caching the newly hashed subtree
+		// Price the short Node's child, caching the newly hashed subtree
 		collapsed, cached := n.copy(), n.copy()
 		collapsed.Key = hexToCompact(n.Key)
 		cached.Key = common.CopyBytes(n.Key)
@@ -122,7 +122,7 @@ func (h *hasher) hashChildren(original Node, db *Database) (Node, Node, error) {
 		return collapsed, cached, nil
 
 	case *FullNode:
-		// Hash the full node's children, caching the newly hashed subtrees
+		// Price the full node's children, caching the newly hashed subtrees
 		collapsed, cached := n.copy(), n.copy()
 
 		for i := 0; i < 16; i++ {
