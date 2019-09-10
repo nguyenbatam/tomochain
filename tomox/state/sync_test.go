@@ -17,23 +17,18 @@
 package state
 
 import (
-	"bytes"
 	"github.com/ethereum/go-ethereum/core/state"
-	"math/big"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/trie"
 )
 
-// testAccount is the data associated with an price used by the state tests.
+// testAccount is the data associated with an orderId used by the state tests.
 type testAccount struct {
-	address common.Address
-	balance *big.Int
+	address common.Hash
 	nonce   uint64
-	code    []byte
 }
 
 // makeTestState create a sample test state to test node-wise reconstruction.
@@ -46,19 +41,11 @@ func makeTestState() (state.Database, common.Hash, []*testAccount) {
 	// Fill it with some arbitrary data
 	accounts := []*testAccount{}
 	for i := byte(0); i < 96; i++ {
-		obj := state.GetOrNewStateExchangeObject(common.BytesToAddress([]byte{i}))
-		acc := &testAccount{address: common.BytesToAddress([]byte{i})}
-
-		obj.AddBalance(big.NewInt(int64(11 * i)))
-		acc.balance = big.NewInt(int64(11 * i))
+		obj := state.GetOrNewStateExchangeObject(common.BytesToHash(([]byte{i})))
+		acc := &testAccount{address: common.BytesToHash([]byte{i})}
 
 		obj.SetNonce(uint64(42 * i))
 		acc.nonce = uint64(42 * i)
-
-		if i%3 == 0 {
-			obj.SetCode(crypto.Keccak256Hash([]byte{i, i, i, i, i}), []byte{i, i, i, i, i})
-			acc.code = []byte{i, i, i, i, i}
-		}
 		state.updateStateExchangeObject(obj)
 		accounts = append(accounts, acc)
 	}
@@ -69,7 +56,7 @@ func makeTestState() (state.Database, common.Hash, []*testAccount) {
 }
 
 // checkStateAccounts cross references a reconstructed state with an expected
-// price array.
+// orderId array.
 func checkStateAccounts(t *testing.T, db ethdb.Database, root common.Hash, accounts []*testAccount) {
 	// Check root availability and state contents
 	state, err := New(root, state.NewDatabase(db))
@@ -80,14 +67,8 @@ func checkStateAccounts(t *testing.T, db ethdb.Database, root common.Hash, accou
 		t.Fatalf("inconsistent state trie at %x: %v", root, err)
 	}
 	for i, acc := range accounts {
-		if balance := state.GetBalance(acc.address); balance.Cmp(acc.balance) != 0 {
-			t.Errorf("price %d: balance mismatch: have %v, want %v", i, balance, acc.balance)
-		}
 		if nonce := state.GetNonce(acc.address); nonce != acc.nonce {
-			t.Errorf("price %d: nonce mismatch: have %v, want %v", i, nonce, acc.nonce)
-		}
-		if code := state.GetCode(acc.address); !bytes.Equal(code, acc.code) {
-			t.Errorf("price %d: code mismatch: have %x, want %x", i, code, acc.code)
+			t.Errorf("orderId %d: nonce mismatch: have %v, want %v", i, nonce, acc.nonce)
 		}
 	}
 }
@@ -132,7 +113,7 @@ func TestEmptyStateSync(t *testing.T) {
 	}
 }
 
-// Tests that given a root price, a state can sync iteratively on a single thread,
+// Tests that given a root orderId, a state can sync iteratively on a single thread,
 // requesting retrieval tasks and returning all of them in one go.
 func TestIterativeStateSyncIndividual(t *testing.T) { testIterativeStateSync(t, 1) }
 func TestIterativeStateSyncBatched(t *testing.T)    { testIterativeStateSync(t, 100) }
@@ -200,7 +181,7 @@ func TestIterativeDelayedStateSync(t *testing.T) {
 	checkStateAccounts(t, dstDb, srcRoot, srcAccounts)
 }
 
-// Tests that given a root price, a trie can sync iteratively on a single thread,
+// Tests that given a root orderId, a trie can sync iteratively on a single thread,
 // requesting retrieval tasks and returning all of them in one go, however in a
 // random order.
 func TestIterativeRandomStateSyncIndividual(t *testing.T) { testIterativeRandomStateSync(t, 1) }
@@ -293,7 +274,7 @@ func TestIterativeRandomDelayedStateSync(t *testing.T) {
 // the database.
 func TestIncompleteStateSync(t *testing.T) {
 	// Create a random state to copy
-	srcDb, srcRoot, srcAccounts := makeTestState()
+	srcDb, srcRoot, _ := makeTestState()
 
 	checkTrieConsistency(srcDb.TrieDB().DiskDB().(ethdb.Database), srcRoot)
 
@@ -323,32 +304,16 @@ func TestIncompleteStateSync(t *testing.T) {
 		for _, result := range results {
 			added = append(added, result.Hash)
 		}
-		// Check that all known sub-tries added so far are complete or missing entirely.
-	checkSubtries:
-		for _, hash := range added {
-			for _, acc := range srcAccounts {
-				if hash == crypto.Keccak256Hash(acc.code) {
-					continue checkSubtries // skip trie check of code nodes.
-				}
-			}
-			// Can't use checkStateConsistency here because subtrie keys may have odd
-			// length and crash in LeafKey.
-			if err := checkTrieConsistency(dstDb, hash); err != nil {
-				t.Fatalf("state inconsistent: %v", err)
-			}
-		}
-		// Fetch the next batch to retrieve
-		queue = append(queue[:0], sched.Missing(1)...)
-	}
-	// Sanity check that removing any node from the database is detected
-	for _, node := range added[1:] {
-		key := node.Bytes()
-		value, _ := dstDb.Get(key)
+		// Sanity check that removing any node from the database is detected
+		for _, node := range added[1:] {
+			key := node.Bytes()
+			value, _ := dstDb.Get(key)
 
-		dstDb.Delete(key)
-		if err := checkStateConsistency(dstDb, added[0]); err == nil {
-			t.Fatalf("trie inconsistency not caught, missing: %x", key)
+			dstDb.Delete(key)
+			if err := checkStateConsistency(dstDb, added[0]); err == nil {
+				t.Fatalf("trie inconsistency not caught, missing: %x", key)
+			}
+			dstDb.Put(key, value)
 		}
-		dstDb.Put(key, value)
 	}
 }

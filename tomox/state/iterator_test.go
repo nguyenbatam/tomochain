@@ -52,7 +52,7 @@ func TestNodeIteratorCoverage(t *testing.T) {
 		}
 	}
 	for _, key := range db.TrieDB().DiskDB().(*ethdb.MemDatabase).Keys() {
-		if bytes.HasPrefix(key, []byte("secure-price-")) {
+		if bytes.HasPrefix(key, []byte("secure-orderId-")) {
 			continue
 		}
 		if _, ok := hashes[common.BytesToHash(key)]; !ok {

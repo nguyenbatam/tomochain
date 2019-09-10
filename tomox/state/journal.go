@@ -30,7 +30,7 @@ type journalEntry interface {
 type journal []journalEntry
 
 type (
-	// Changes to the price trie.
+	// Changes to the orderId trie.
 	createExchangeObjectChange struct {
 		hash *common.Hash
 	}
@@ -55,6 +55,10 @@ type (
 		prev      *stateOrderList
 	}
 
+	createOrdernItem struct {
+		orderBook *common.Hash
+		orderId   *common.Hash
+	}
 	nonceChange struct {
 		hash *common.Hash
 		prev uint64
@@ -82,11 +86,18 @@ type (
 		prevalue       common.Hash
 	}
 
-	storageOrderItemChange struct {
+	SetOrderToList struct {
 		orderBook, price *common.Hash
 		orderType        *string
-		orderId          *uint64
+		orderId          *common.Hash
 		value            common.Hash
+	}
+
+	AmountOrderItemChange struct {
+		orderBook *common.Hash
+		orderId   *common.Hash
+		amount    *big.Int
+		prev      big.Int
 	}
 )
 
@@ -142,11 +153,20 @@ func (ch orderChange) undo(s *StateDB) {
 	s.getStateExchangeObject(*ch.orderBook).setOrderHash(*ch.key, ch.prevalue)
 }
 
-func (ch storageOrderItemChange) undo(s *StateDB) {
+func (ch SetOrderToList) undo(s *StateDB) {
 	switch *ch.orderType {
 	case tomox.Bid:
-		s.getStateExchangeObject(*ch.orderBook).getStateBidOrderListObject(*ch.price).setOrderItem(*ch.orderId, ch.value)
+		s.getStateExchangeObject(*ch.orderBook).getStateBidOrderListObject(s.db,*ch.price).setOrderItem(*ch.orderId, ch.value)
 	case tomox.Ask:
-		s.getStateExchangeObject(*ch.orderBook).getStateOrderListAskObject(*ch.price).setOrderItem(*ch.orderId, ch.value)
+		s.getStateExchangeObject(*ch.orderBook).getStateOrderListAskObject(s.db,*ch.price).setOrderItem(*ch.orderId, ch.value)
 	}
+}
+
+func (ch AmountOrderItemChange) undo(s *StateDB) {
+	s.getStateExchangeObject(*ch.orderBook).getStateOrderItem(s.db,*ch.orderId).setAmount(*ch.amount)
+}
+
+func (ch createOrdernItem) undo(s *StateDB) {
+	delete(s.getStateExchangeObject(*ch.orderBook).stateOrderItems, *ch.orderId)
+	delete(s.getStateExchangeObject(*ch.orderBook).stateOrderItemsDirty, *ch.orderId)
 }

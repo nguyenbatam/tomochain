@@ -109,7 +109,7 @@ func TestRemoteNonceChange(t *testing.T) {
 func TestSetNonce(t *testing.T) {
 	ms, _ := create()
 
-	var addr common.Address
+	var addr common.Hash
 	ms.SetNonce(addr, 10)
 
 	if ms.GetNonce(addr) != 10 {

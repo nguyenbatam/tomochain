@@ -38,7 +38,7 @@ type revision struct {
 }
 
 var (
-	// emptyState is the known price of an empty state trie entry.
+	// emptyState is the known orderId of an empty state trie entry.
 	emptyState = crypto.Keccak256Hash(nil)
 	Ask        = "SELL"
 	Bid        = "BUY"
@@ -112,7 +112,7 @@ func (self *StateDB) Reset(root common.Hash) error {
 	return nil
 }
 
-// Exist reports whether the given price address exists in the state.
+// Exist reports whether the given orderId address exists in the state.
 // Notably this also returns true for suicided exchanges.
 func (self *StateDB) Exist(addr common.Hash) bool {
 	return self.getStateExchangeObject(addr) != nil
@@ -149,23 +149,34 @@ func (self *StateDB) SetNonce(addr common.Hash, nonce uint64) {
 	}
 }
 
-func (self *StateDB) SetOrderItem(orderBook common.Hash, orderHash common.Hash, orderId uint64, price *big.Int, amount *big.Int, side string) {
+func (self *StateDB) InsertOrderItem(orderBook common.Hash, orderHash common.Hash, orderId common.Hash, price *big.Int, amount *big.Int, orderType string) {
 	stateObject := self.GetOrNewStateExchangeObject(orderBook)
 	if stateObject != nil {
 		var stateOrderList *stateOrderList
-		switch side {
+		switch orderType {
 		case Ask:
-			stateOrderList = stateObject.GetOrNewStateOrderListAskObject(common.BigToHash(price))
+			stateOrderList = stateObject.GetOrNewStateOrderListAskObject(self.db, common.BigToHash(price))
 		case Bid:
-			stateOrderList = stateObject.GetOrNewStateOrderListBidObject(common.BigToHash(price))
+			stateOrderList = stateObject.GetOrNewStateOrderListBidObject(self.db, common.BigToHash(price))
 		default:
 			return
 		}
+		stateObject.NewOrderItem(self.db, *amount, orderId, orderType)
 		stateOrderList.SetOrderItem(self.db, orderId, orderHash)
 		stateOrderList.AddVolume(amount)
 	}
 }
 
+func (self *StateDB) GetOrderItem(orderBook common.Hash, orderId common.Hash) (*OrderItem) {
+	stateObject := self.GetOrNewStateExchangeObject(orderBook)
+	if stateObject != nil {
+		state:=stateObject.getStateOrderItem(self.db, orderId)
+		if state != nil {
+			return &state.data
+		}
+	}
+	return nil
+}
 func (self *StateDB) GetBestAskPrice(orderBook common.Hash) (*big.Int, error) {
 	stateObject := self.GetOrNewStateExchangeObject(orderBook)
 	if stateObject != nil {
@@ -175,10 +186,10 @@ func (self *StateDB) GetBestAskPrice(orderBook common.Hash) (*big.Int, error) {
 		}
 		return new(big.Int).SetBytes(price), err
 	}
-	return big.NewInt(0), fmt.Errorf("can not get best ask price %s ", orderBook.Hex())
+	return big.NewInt(0), fmt.Errorf("can not get best ask orderId %s ", orderBook.Hex())
 }
 
-func (self *StateDB) GetBestBidPrice(orderBook common.Hash) (*big.Int, error) {
+func (self *StateDB) GetBestBidPrice(db state.Database, orderBook common.Hash) (*big.Int, error) {
 	stateObject := self.GetOrNewStateExchangeObject(orderBook)
 	if stateObject != nil {
 		price, err := stateObject.getBidsTrie(self.db).TryGetBestRight()
@@ -187,14 +198,14 @@ func (self *StateDB) GetBestBidPrice(orderBook common.Hash) (*big.Int, error) {
 		}
 		return new(big.Int).SetBytes(price), err
 	}
-	return big.NewInt(0), fmt.Errorf("can not get best ask price %s ", orderBook.Hex())
+	return big.NewInt(0), fmt.Errorf("can not get best ask orderId %s ", orderBook.Hex())
 }
 
-func (self *StateDB) GetBestOrder(orderBook common.Hash, price *big.Int) (common.Hash, error) {
+func (self *StateDB) GetBestOrder(db state.Database, orderBook common.Hash, price *big.Int) (common.Hash, error) {
 	stateObject := self.GetOrNewStateExchangeObject(orderBook)
 	if stateObject != nil {
-		orderList := stateObject.getStateOrderListAskObject(common.BigToHash(price))
-		volume:=orderList.Volume()
+		orderList := stateObject.getStateOrderListAskObject(db, common.BigToHash(price))
+		volume := orderList.Volume()
 		if volume.Cmp(tomox.Zero()) > 0 {
 			if orderList != nil {
 				hash, err := orderList.getTrie(self.db).TryGetBestLeft()
@@ -205,7 +216,7 @@ func (self *StateDB) GetBestOrder(orderBook common.Hash, price *big.Int) (common
 			}
 		}
 	}
-	return common.Hash{}, fmt.Errorf("can not get best order : %s & price : %d", orderBook.Hex(), price)
+	return common.Hash{}, fmt.Errorf("can not get best order : %s & orderId : %d", orderBook.Hex(), price)
 }
 
 // updateStateExchangeObject writes the given object to the trie.
@@ -261,7 +272,7 @@ func (self *StateDB) MarkStateExchangeObjectDirty(addr common.Hash) {
 	self.stateExhangeObjectsDirty[addr] = struct{}{}
 }
 
-// createStateOrderListObject creates a new state object. If there is an existing price with
+// createStateOrderListObject creates a new state object. If there is an existing orderId with
 // the given address, it is overwritten and returned as the second return value.
 func (self *StateDB) createExchangeObject(addr common.Hash) (newobj, prev *stateExchanges) {
 	prev = self.getStateExchangeObject(addr)
@@ -390,8 +401,8 @@ func (s *StateDB) Finalise(deleteEmptyObjects bool) {
 	s.clearJournalAndRefund()
 }
 
-// IntermediateRoot computes the current root price of the state trie.
-// It is called in between transactions to get the root price that
+// IntermediateRoot computes the current root orderId of the state trie.
+// It is called in between transactions to get the root orderId that
 // goes into transaction receipts.
 func (s *StateDB) IntermediateRoot(deleteEmptyObjects bool) common.Hash {
 	s.Finalise(deleteEmptyObjects)
@@ -420,7 +431,10 @@ func (s *StateDB) Commit(deleteEmptyObjects bool) (root common.Hash, err error) 
 			if err := stateObject.CommitOrdersTrie(s.db); err != nil {
 				return common.Hash{}, err
 			}
-			// Update the object in the main price trie.
+			if s.dbErr !=nil {
+				fmt.Println("dbError", s.dbErr)
+			}
+			// Update the object in the main orderId trie.
 			s.updateStateExchangeObject(stateObject)
 			delete(s.stateExhangeObjectsDirty, addr)
 		}

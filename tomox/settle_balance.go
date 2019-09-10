@@ -26,7 +26,7 @@ func SettleBalance(
 	result := map[common.Address]map[string]interface{}{}
 	//
 	//// pair: BASE_TOKEN / QUOTE_TOKEN
-	//// Volume is calculated by quote token
+	//// Amount is calculated by quote token
 	//// Therefore, baseTokenQuantity = price * quantity
 	////				quoteQuantity = quantity
 	//// Fee by quoteToken

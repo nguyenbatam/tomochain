@@ -428,7 +428,7 @@ func (orderBook *OrderBook) processOrderList(side string, orderList *OrderList, 
 		}
 
 		if verbose {
-			log.Info("TRADE", "Timestamp", orderBook.Timestamp, "Price", tradedPrice, "Quantity", tradedQuantity, "TradeID", headOrder.Item.ExchangeAddress.Hex(), "Matching TradeID", order.ExchangeAddress.Hex())
+			log.Info("TRADE", "Timestamp", orderBook.Timestamp, "Price", tradedPrice, "Amount", tradedQuantity, "TradeID", headOrder.Item.ExchangeAddress.Hex(), "Matching TradeID", order.ExchangeAddress.Hex())
 		}
 
 		transactionRecord := make(map[string]string)

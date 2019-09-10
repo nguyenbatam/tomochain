@@ -19,9 +19,14 @@ package state
 import (
 	"bytes"
 	"fmt"
+	"github.com/ethereum/go-ethereum/cmd/utils"
 	"github.com/ethereum/go-ethereum/core/state"
+	"github.com/ethereum/go-ethereum/eth"
+	"github.com/tomochain/tomox-sdk/types"
 	"math"
+	"math/big"
 	"math/rand"
+	"os"
 	"reflect"
 	"strings"
 	"testing"
@@ -142,10 +147,10 @@ func TestCopy(t *testing.T) {
 		origObj := orig.GetOrNewStateExchangeObject(common.BytesToHash([]byte{i}))
 		copyObj := copy.GetOrNewStateExchangeObject(common.BytesToHash([]byte{i}))
 
-		if want := 3 * uint64(i); origObj.Nonce() == want {
+		if want := 2 * uint64(i); origObj.Nonce() != want {
 			t.Errorf("orig obj %d: balance mismatch: have %v, want %v", i, origObj.Nonce(), want)
 		}
-		if want := 4 * uint64(i); copyObj.Nonce() == want {
+		if want := 3 * uint64(i); copyObj.Nonce() != want {
 			t.Errorf("copy obj %d: balance mismatch: have %v, want %v", i, copyObj.Nonce(), want)
 		}
 	}
@@ -174,10 +179,10 @@ func TestSnapshotRandom(t *testing.T) {
 // accessor methods on the reverted state must match the return value of the equivalent
 // methods on the replayed state.
 type snapshotTest struct {
-	addrs     []common.Hash // all price addresses
-	actions   []testAction     // modifications to the state
-	snapshots []int            // actions indexes at which snapshot is taken
-	err       error            // failure details are reported through this field
+	addrs     []common.Hash // all orderId addresses
+	actions   []testAction  // modifications to the state
+	snapshots []int         // actions indexes at which snapshot is taken
+	err       error         // failure details are reported through this field
 }
 
 type testAction struct {
@@ -217,7 +222,6 @@ func newTestAction(addr common.Hash, r *rand.Rand) testAction {
 				s.createExchangeObject(addr)
 			},
 		},
-
 	}
 	action := actions[r.Intn(len(actions))]
 	var nameargs []string
@@ -319,11 +323,11 @@ func (test *snapshotTest) checkEqual(state, checkstate *StateDB) error {
 		checkeq("GetNonce", state.GetNonce(addr), checkstate.GetNonce(addr))
 		// Check storage.
 		//if obj := state.getStateExchangeObject(addr); obj != nil {
-		//	state.ForEachStorage(addr, func(price, val common.Hash) bool {
-		//		return checkeq("GetState("+price.Hex()+")", val, checkstate.GetState(addr, price))
+		//	state.ForEachStorage(addr, func(orderId, val common.Hash) bool {
+		//		return checkeq("GetState("+orderId.Hex()+")", val, checkstate.GetState(addr, orderId))
 		//	})
-		//	checkstate.ForEachStorage(addr, func(price, checkval common.Hash) bool {
-		//		return checkeq("GetState("+price.Hex()+")", state.GetState(addr, price), checkval)
+		//	checkstate.ForEachStorage(addr, func(orderId, checkval common.Hash) bool {
+		//		return checkeq("GetState("+orderId.Hex()+")", state.GetState(addr, orderId), checkval)
 		//	})
 		//}
 		if err != nil {
@@ -348,4 +352,72 @@ func (s *StateSuite) TestTouchDelete(c *check.C) {
 	if len(s.state.stateExhangeObjectsDirty) != 0 {
 		c.Fatal("expected no dirty state object")
 	}
+}
+
+func TestEchangeStates(t *testing.T) {
+	dir := "/home/tamnb/_projects/tomochain/src/github.com/ethereum/go-ethereum/devnet/test"
+	os.Remove(dir)
+	orderBook := common.StringToHash("BTC/TOMO")
+	numberOrder := 250;
+	orderItems := []OrderItem{}
+	relayers := []common.Hash{}
+	for i := 0; i < numberOrder; i++ {
+		relayers = append(relayers, common.BigToHash(big.NewInt(int64(i))))
+		orderItems = append(orderItems, OrderItem{Amount: *big.NewInt(int64(2*i + 1)), OrderType: types.SELL})
+		orderItems = append(orderItems, OrderItem{Amount: *big.NewInt(int64(2*i + 1)), OrderType: types.BUY})
+	}
+	// Create an empty statedb database
+	db, _ := ethdb.NewLDBDatabase(dir, eth.DefaultConfig.DatabaseCache, utils.MakeDatabaseHandles())
+	stateCache := state.NewDatabase(db)
+	statedb, _ := New(common.Hash{}, stateCache)
+
+	// Update it with some exchanges
+	for i := 0; i < numberOrder; i++ {
+		statedb.SetNonce(relayers[i], uint64(1))
+	}
+	orderBookId := uint64(1)
+	for i := 0; i < len(orderItems); i++ {
+		id := new(big.Int).SetUint64(orderBookId)
+		orderId := common.BigToHash(id)
+		statedb.InsertOrderItem(orderBook, orderId, orderId, &orderItems[i].Amount, &orderItems[i].Amount, orderItems[i].OrderType)
+		statedb.SetNonce(orderBook, orderBookId)
+		orderBookId = orderBookId + 1
+	}
+
+	root, err := statedb.Commit(false)
+	if err != nil {
+		t.Fatalf("Error when commit into database: %v", err)
+	}
+	fmt.Println("root", root.Hex())
+	err = stateCache.TrieDB().Commit(root, false)
+	if err != nil {
+		t.Errorf("Error when commit into database: %v", err)
+	}
+	db.Close()
+
+	db, _ = ethdb.NewLDBDatabase("/home/tamnb/_projects/tomochain/src/github.com/ethereum/go-ethereum/devnet/test", eth.DefaultConfig.DatabaseCache, utils.MakeDatabaseHandles())
+	stateCache = state.NewDatabase(db)
+	statedb, err = New(root, stateCache)
+	if err != nil {
+		t.Fatalf("Error when get trie in database: %s , err: %v", root.Hex(), err)
+	}
+	for i := 0; i < numberOrder; i++ {
+		nonce := statedb.GetNonce(relayers[i])
+		if nonce != uint64(1) {
+			t.Fatalf("Error when get nonce save in database: got : %d , wanted : %d ", nonce, i)
+		}
+	}
+	statedb.GetNonce(orderBook)
+	for i := 0; i < len(orderItems); i++ {
+		id := new(big.Int).SetUint64(uint64(i+1))
+		orderId := common.BigToHash(id)
+		orderItem := statedb.GetOrderItem(orderBook, orderId)
+		if orderItem == nil {
+			t.Fatalf("Error == nil when get Order Item save in database: orderId %s ", orderId.Hex())
+		}
+		if orderItem.Amount.Cmp(&orderItems[i].Amount) != 0 {
+			t.Fatalf("Error when get nonce save in database: orderId %s ,got : %d , wanted : %d ", orderId.Hex(), orderItem.Amount.Uint64(), orderItems[i].Amount.Uint64())
+		}
+	}
+	db.Close()
 }

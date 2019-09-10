@@ -13,14 +13,14 @@ import (
 type OrderTreeItem struct {
 	Volume        *big.Int `json:"volume"`        // Contains total quantity from all Orders in tree
 	NumOrders     uint64   `json:"numOrders"`     // Contains count of Orders in tree
-	PriceTreeKey  []byte   `json:"priceTreeKey"`  // Root Key of price tree
+	PriceTreeKey  []byte   `json:"priceTreeKey"`  // OrderId Key of price tree
 	PriceTreeSize uint64   `json:"priceTreeSize"` // Number of nodes, currently it is Depth
 }
 
 type OrderTreeItemBSON struct {
 	Volume        string `json:"volume" bson:"volume"`               // Contains total quantity from all Orders in tree
 	NumOrders     string `json:"numOrders" bson:"numOrders"`         // Contains count of Orders in tree
-	PriceTreeKey  string `json:"priceTreeKey"`                       // Root Key of price tree
+	PriceTreeKey  string `json:"priceTreeKey"`                       // OrderId Key of price tree
 	PriceTreeSize string `json:"priceTreeSize" bson:"priceTreeSize"` // Number of nodes, currently it is Depth
 }
 

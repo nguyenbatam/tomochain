@@ -20,7 +20,7 @@ func buildOrder(nonce *big.Int) *OrderItem {
 	order := &OrderItem{
 		Quantity:        new(big.Int).SetUint64(uint64(rand.Intn(10)) * 1000000000000000000),
 		Price:           new(big.Int).SetUint64(uint64(rand.Intn(10)) * 100000000000000000),
-		//Quantity: new(big.Int).SetUint64(uint64(5) * 1000000000000000000),
+		//Amount: new(big.Int).SetUint64(uint64(5) * 1000000000000000000),
 		//Price:           new(big.Int).SetUint64(uint64(2) * 100000000000000000),
 		ExchangeAddress: common.HexToAddress("0x0342d186212b04E69eA682b3bed8e232b6b3361a"),
 		UserAddress:     common.HexToAddress("0x9ca1514E3Dc4059C29a1608AE3a3E3fd35900888"),

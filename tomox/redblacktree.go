@@ -42,7 +42,7 @@ func NewWithBytesComparator(db OrderDao) *Tree {
 func (tree *Tree) Root(dryrun bool) *Node {
 	root, err := tree.GetNode(tree.rootKey, dryrun)
 	if err != nil {
-		log.Error("Can't get tree.Root", "rootKey", hex.EncodeToString(tree.rootKey), "err", err)
+		log.Error("Can't get tree.OrderId", "rootKey", hex.EncodeToString(tree.rootKey), "err", err)
 		return nil
 	}
 	return root
@@ -71,7 +71,7 @@ func (tree *Tree) Put(key []byte, value []byte, dryrun bool) error {
 	} else {
 		node := tree.Root(dryrun)
 		if node == nil {
-			return fmt.Errorf("Error on inserting node into the tree. tree.Root() is nil")
+			return fmt.Errorf("Error on inserting node into the tree. tree.OrderId() is nil")
 		}
 		loop := true
 
@@ -401,7 +401,7 @@ func output(tree *Tree, node *Node, prefix string, isTail bool, str *string, dry
 }
 
 func (tree *Tree) rotateLeft(node *Node, dryrun bool) {
-	log.Debug("Rotate left - before", "Root key", hex.EncodeToString(tree.Root(dryrun).Key), "all keys", tree.KeysinString(true))
+	log.Debug("Rotate left - before", "OrderId key", hex.EncodeToString(tree.Root(dryrun).Key), "all keys", tree.KeysinString(true))
 	right := node.Right(tree, dryrun)
 	tree.replaceNode(node, right, dryrun)
 	node.RightKey(right.LeftKey())
@@ -414,11 +414,11 @@ func (tree *Tree) rotateLeft(node *Node, dryrun bool) {
 	node.ParentKey(right.Key)
 	tree.Save(node, dryrun)
 	tree.Save(right, dryrun)
-	log.Debug("Rotate left - after", "Root key", hex.EncodeToString(tree.Root(dryrun).Key), "all keys", tree.KeysinString(true))
+	log.Debug("Rotate left - after", "OrderId key", hex.EncodeToString(tree.Root(dryrun).Key), "all keys", tree.KeysinString(true))
 }
 
 func (tree *Tree) rotateRight(node *Node, dryrun bool) {
-	log.Debug("Rotate right - before", "Root key", hex.EncodeToString(tree.Root(dryrun).Key), "all keys", tree.KeysinString(true))
+	log.Debug("Rotate right - before", "OrderId key", hex.EncodeToString(tree.Root(dryrun).Key), "all keys", tree.KeysinString(true))
 	left := node.Left(tree, dryrun)
 	tree.replaceNode(node, left, dryrun)
 	node.LeftKey(left.RightKey())
@@ -431,7 +431,7 @@ func (tree *Tree) rotateRight(node *Node, dryrun bool) {
 	node.ParentKey(left.Key)
 	tree.Save(node, dryrun)
 	tree.Save(left, dryrun)
-	log.Debug("Rotate right - after", "Root key", hex.EncodeToString(tree.Root(dryrun).Key), "all keys", tree.KeysinString(true))
+	log.Debug("Rotate right - after", "OrderId key", hex.EncodeToString(tree.Root(dryrun).Key), "all keys", tree.KeysinString(true))
 }
 
 func (tree *Tree) replaceNode(old *Node, new *Node, dryrun bool) {

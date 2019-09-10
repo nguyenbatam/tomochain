@@ -102,10 +102,10 @@ func TestOrderBook_ProcessLimitOrder_InsertToOrderTree(t *testing.T) {
 	}
 }
 
-// this order matches one order of orderTree, order.quantity < orderList.headOrder.Item.Quantity
+// this order matches one order of orderTree, order.quantity < orderList.headOrder.Item.Amount
 // as a result, after matching, quantityToTrade = 0, update quantity of headOrder
 // refer this case tomox/orderbook.go:357:
-// IsStrictlySmallerThan(quantityToTrade, headOrder.Item.Quantity)
+// IsStrictlySmallerThan(quantityToTrade, headOrder.Item.Amount)
 func TestOrderBook_ProcessLimitOrder_OneToOneMatching_FullMatching_Case1(t *testing.T) {
 	testDir := "TestOrderBook_ProcessLimitOrder_OneToOneMatching_FullMatching_Case1"
 	defer os.RemoveAll(testDir)
@@ -151,10 +151,10 @@ func TestOrderBook_ProcessLimitOrder_OneToOneMatching_FullMatching_Case1(t *test
 }
 
 
-// this order matches one order of orderTree, order.quantity == orderList.headOrder.Item.Quantity
+// this order matches one order of orderTree, order.quantity == orderList.headOrder.Item.Amount
 // as a result, after matching, quantityToTrade = 0, remove headOrder from orderList
 // refer this case tomox/orderbook.go:365
-// IsEqual(quantityToTrade, headOrder.Item.Quantity)
+// IsEqual(quantityToTrade, headOrder.Item.Amount)
 func TestOrderBook_ProcessLimitOrder_OneToOneMatching_FullMatching_Case2(t *testing.T) {
 	testDir := "TestOrderBook_ProcessLimitOrder_OneToOneMatching_FullMatching_Case2"
 	defer os.RemoveAll(testDir)
@@ -198,7 +198,7 @@ func TestOrderBook_ProcessLimitOrder_OneToOneMatching_FullMatching_Case2(t *test
 	}
 }
 
-// this order matches one order of orderTree, order.quantity > orderList.headOrder.Item.Quantity
+// this order matches one order of orderTree, order.quantity > orderList.headOrder.Item.Amount
 // as a result, after matching, quantityToTrade = Sub(quantityToTrade, tradedQuantity), remove headOrder from orderList
 // refer this case tomox/orderbook.go:378
 func TestOrderBook_ProcessLimitOrder_OneToOneMatching_PartialMatching(t *testing.T) {

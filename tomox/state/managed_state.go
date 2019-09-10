@@ -66,7 +66,7 @@ func (ms *ManagedState) RemoveNonce(addr common.Hash, n uint64) {
 	}
 }
 
-// NewNonce returns the new canonical nonce for the managed price
+// NewNonce returns the new canonical nonce for the managed orderId
 func (ms *ManagedState) NewNonce(addr common.Hash) uint64 {
 	ms.mu.Lock()
 	defer ms.mu.Unlock()
@@ -82,7 +82,7 @@ func (ms *ManagedState) NewNonce(addr common.Hash) uint64 {
 	return uint64(len(account.nonces)-1) + account.nstart
 }
 
-// GetNonce returns the canonical nonce for the managed or unmanaged price.
+// GetNonce returns the canonical nonce for the managed or unmanaged orderId.
 //
 // Because GetNonce mutates the DB, we must take a write lock.
 func (ms *ManagedState) GetNonce(addr common.Hash) uint64 {
@@ -126,7 +126,7 @@ func (ms *ManagedState) getAccount(addr common.Hash) *exchanges {
 		so := ms.GetOrNewStateExchangeObject(addr)
 		ms.exchanges[addr] = newAccount(so)
 	} else {
-		// Always make sure the state price nonce isn't actually higher
+		// Always make sure the state orderId nonce isn't actually higher
 		// than the tracked one.
 		so := ms.StateDB.getStateExchangeObject(addr)
 		if so != nil && uint64(len(account.nonces))+account.nstart < so.Nonce() {

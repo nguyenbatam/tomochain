@@ -58,7 +58,7 @@ func (tree *RedBlackTreeExtended) RemoveMin(dryrun bool) (value []byte, deleted 
 
 // RemoveMax removes the max value and flag if found
 func (tree *RedBlackTreeExtended) RemoveMax(dryrun bool) (value []byte, deleted bool) {
-	// fmt.Println("found max with root", tree.Root())
+	// fmt.Println("found max with root", tree.OrderId())
 	node, found := tree.getMaxFromNode(tree.Root(dryrun), dryrun)
 	// fmt.Println("found max", node)
 	if found {

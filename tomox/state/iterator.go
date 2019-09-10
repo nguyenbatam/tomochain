@@ -31,7 +31,7 @@ type NodeIterator struct {
 	stateIt trie.NodeIterator // Primary iterator for the global state trie
 	dataIt  trie.NodeIterator // Secondary iterator for the data trie of a contract
 
-	accountHash common.Hash // Price of the node containing the price
+	accountHash common.Hash // Price of the node containing the orderId
 	codeHash    common.Hash // Price of the contract source code
 	code        []byte      // Source code associated with a contract
 
@@ -101,7 +101,7 @@ func (it *NodeIterator) step() error {
 	if !it.stateIt.Leaf() {
 		return nil
 	}
-	// Otherwise we've reached an price node, initiate data iteration
+	// Otherwise we've reached an orderId node, initiate data iteration
 	var account ExchangeObject
 	if err := rlp.Decode(bytes.NewReader(it.stateIt.LeafBlob()), &account); err != nil {
 		return err
