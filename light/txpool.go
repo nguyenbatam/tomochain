@@ -42,7 +42,7 @@ const (
 // considered permanent and no rollback is expected
 var txPermanent = uint64(500)
 
-// TxPool implements the transaction pool for light clients, which keeps track
+// OrderPool implements the transaction pool for light clients, which keeps track
 // of the status of locally created transactions, detecting if they are included
 // in a block (mined) or rolled back. There are no queued transactions since we
 // always receive all locally signed transactions in the same order as they are

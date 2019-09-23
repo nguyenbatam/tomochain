@@ -17,7 +17,6 @@
 package state
 
 import (
-	"github.com/ethereum/go-ethereum/core/state"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -28,7 +27,7 @@ var addr = common.BytesToHash([]byte("test"))
 
 func create() (*ManagedState, *exchanges) {
 	db, _ := ethdb.NewMemDatabase()
-	statedb, _ := New(common.Hash{}, state.NewDatabase(db))
+	statedb, _ := New(common.Hash{}, NewDatabase(db))
 	ms := ManageState(statedb)
 	ms.StateDB.SetNonce(addr, 100)
 	ms.exchanges[addr] = newAccount(ms.StateDB.getStateExchangeObject(addr))

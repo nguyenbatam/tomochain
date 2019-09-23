@@ -15,16 +15,16 @@ import (
 
 var (
 	// errors
-	errFutureOrder             = errors.New("verify matched order: future order")
-	errNoTimestamp             = errors.New("verify matched order: no timestamp")
-	errWrongHash               = errors.New("verify matched order: wrong hash")
-	errInvalidSignature        = errors.New("verify matched order: invalid signature")
-	errNotEnoughBalance        = errors.New("verify matched order: not enough balance")
-	errInvalidPrice            = errors.New("verify matched order: invalid price")
-	errInvalidQuantity         = errors.New("verify matched order: invalid quantity")
-	errInvalidRelayer          = errors.New("verify matched order: invalid relayer")
-	errInvalidOrderType        = errors.New("verify matched order: unsupported order type")
-	errInvalidOrderSide        = errors.New("verify matched order: invalid order side")
+	errFutureOrder      = errors.New("verify matched order: future order")
+	errNoTimestamp      = errors.New("verify matched order: no timestamp")
+	ErrWrongHash        = errors.New("verify matched order: wrong hash")
+	ErrInvalidSignature = errors.New("verify matched order: invalid signature")
+	errNotEnoughBalance = errors.New("verify matched order: not enough balance")
+	errInvalidPrice     = errors.New("verify matched order: invalid price")
+	errInvalidQuantity  = errors.New("verify matched order: invalid quantity")
+	errInvalidRelayer   = errors.New("verify matched order: invalid relayer")
+	errInvalidOrderType = errors.New("verify matched order: unsupported order type")
+	errInvalidOrderSide = errors.New("verify matched order: invalid order side")
 	errOrderBookHashNotMatch   = errors.New("verify matched order: orderbook hash not match")
 	errOrderTreeHashNotMatch   = errors.New("verify matched order: ordertree hash not match")
 
@@ -127,7 +127,7 @@ func (o *OrderItem) verifySignature() error {
 	)
 	hash = o.computeHash()
 	if hash != o.Hash {
-		return errWrongHash
+		return ErrWrongHash
 	}
 	signatureBytes = append(signatureBytes, o.Signature.R.Bytes()...)
 	signatureBytes = append(signatureBytes, o.Signature.S.Bytes()...)
@@ -139,7 +139,7 @@ func (o *OrderItem) verifySignature() error {
 	var userAddress common.Address
 	copy(userAddress[:], crypto.Keccak256(pubkey[1:])[12:])
 	if userAddress != o.UserAddress {
-		return errInvalidSignature
+		return ErrInvalidSignature
 	}
 	return nil
 }

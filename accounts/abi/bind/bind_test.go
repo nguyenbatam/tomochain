@@ -580,7 +580,7 @@ var bindTests = []struct {
 					address indexed Addr,
 					bytes32 indexed Id,
 					bool    indexed Flag,
-					uint    Value
+					uint    Quantity
 				);
 				function raiseSimpleEvent(address addr, bytes32 id, bool flag, uint value) {
 					SimpleEvent(addr, id, flag, value);
@@ -607,7 +607,7 @@ var bindTests = []struct {
 			}
 		`,
 		`6060604052341561000f57600080fd5b61042c8061001e6000396000f300606060405260043610610057576000357c0100000000000000000000000000000000000000000000000000000000900463ffffffff168063528300ff1461005c578063630c31e2146100fc578063c7d116dd14610156575b600080fd5b341561006757600080fd5b6100fa600480803590602001908201803590602001908080601f0160208091040260200160405190810160405280939291908181526020018383808284378201915050505050509190803590602001908201803590602001908080601f01602080910402602001604051908101604052809392919081815260200183838082843782019150505050505091905050610194565b005b341561010757600080fd5b610154600480803573ffffffffffffffffffffffffffffffffffffffff16906020019091908035600019169060200190919080351515906020019091908035906020019091905050610367565b005b341561016157600080fd5b610192600480803590602001909190803560010b90602001909190803563ffffffff169060200190919050506103c3565b005b806040518082805190602001908083835b6020831015156101ca57805182526020820191506020810190506020830392506101a5565b6001836020036101000a0380198251168184511680821785525050505050509050019150506040518091039020826040518082805190602001908083835b60208310151561022d5780518252602082019150602081019050602083039250610208565b6001836020036101000a03801982511681845116808217855250505050505090500191505060405180910390207f3281fd4f5e152dd3385df49104a3f633706e21c9e80672e88d3bcddf33101f008484604051808060200180602001838103835285818151815260200191508051906020019080838360005b838110156102c15780820151818401526020810190506102a6565b50505050905090810190601f1680156102ee5780820380516001836020036101000a031916815260200191505b50838103825284818151815260200191508051906020019080838360005b8381101561032757808201518184015260208101905061030c565b50505050905090810190601f1680156103545780820380516001836020036101000a031916815260200191505b5094505050505060405180910390a35050565b81151583600019168573ffffffffffffffffffffffffffffffffffffffff167f1f097de4289df643bd9c11011cc61367aa12983405c021056e706eb5ba1250c8846040518082815260200191505060405180910390a450505050565b8063ffffffff168260010b847f3ca7f3a77e5e6e15e781850bc82e32adfa378a2a609370db24b4d0fae10da2c960405160405180910390a45050505600a165627a7a72305820d1f8a8bbddbc5bb29f285891d6ae1eef8420c52afdc05e1573f6114d8e1714710029`,
-		`[{"constant":false,"inputs":[{"name":"str","type":"string"},{"name":"blob","type":"bytes"}],"name":"raiseDynamicEvent","outputs":[],"payable":false,"stateMutability":"nonpayable","type":"function"},{"constant":false,"inputs":[{"name":"addr","type":"address"},{"name":"id","type":"bytes32"},{"name":"flag","type":"bool"},{"name":"value","type":"uint256"}],"name":"raiseSimpleEvent","outputs":[],"payable":false,"stateMutability":"nonpayable","type":"function"},{"constant":false,"inputs":[{"name":"number","type":"uint256"},{"name":"short","type":"int16"},{"name":"long","type":"uint32"}],"name":"raiseNodataEvent","outputs":[],"payable":false,"stateMutability":"nonpayable","type":"function"},{"anonymous":false,"inputs":[{"indexed":true,"name":"Addr","type":"address"},{"indexed":true,"name":"Id","type":"bytes32"},{"indexed":true,"name":"Flag","type":"bool"},{"indexed":false,"name":"Value","type":"uint256"}],"name":"SimpleEvent","type":"event"},{"anonymous":false,"inputs":[{"indexed":true,"name":"Number","type":"uint256"},{"indexed":true,"name":"Short","type":"int16"},{"indexed":true,"name":"Long","type":"uint32"}],"name":"NodataEvent","type":"event"},{"anonymous":false,"inputs":[{"indexed":true,"name":"IndexedString","type":"string"},{"indexed":true,"name":"IndexedBytes","type":"bytes"},{"indexed":false,"name":"NonIndexedString","type":"string"},{"indexed":false,"name":"NonIndexedBytes","type":"bytes"}],"name":"DynamicEvent","type":"event"}]`,
+		`[{"constant":false,"inputs":[{"name":"str","type":"string"},{"name":"blob","type":"bytes"}],"name":"raiseDynamicEvent","outputs":[],"payable":false,"stateMutability":"nonpayable","type":"function"},{"constant":false,"inputs":[{"name":"addr","type":"address"},{"name":"id","type":"bytes32"},{"name":"flag","type":"bool"},{"name":"value","type":"uint256"}],"name":"raiseSimpleEvent","outputs":[],"payable":false,"stateMutability":"nonpayable","type":"function"},{"constant":false,"inputs":[{"name":"number","type":"uint256"},{"name":"short","type":"int16"},{"name":"long","type":"uint32"}],"name":"raiseNodataEvent","outputs":[],"payable":false,"stateMutability":"nonpayable","type":"function"},{"anonymous":false,"inputs":[{"indexed":true,"name":"Addr","type":"address"},{"indexed":true,"name":"Id","type":"bytes32"},{"indexed":true,"name":"Flag","type":"bool"},{"indexed":false,"name":"Quantity","type":"uint256"}],"name":"SimpleEvent","type":"event"},{"anonymous":false,"inputs":[{"indexed":true,"name":"Number","type":"uint256"},{"indexed":true,"name":"Short","type":"int16"},{"indexed":true,"name":"Long","type":"uint32"}],"name":"NodataEvent","type":"event"},{"anonymous":false,"inputs":[{"indexed":true,"name":"IndexedString","type":"string"},{"indexed":true,"name":"IndexedBytes","type":"bytes"},{"indexed":false,"name":"NonIndexedString","type":"string"},{"indexed":false,"name":"NonIndexedBytes","type":"bytes"}],"name":"DynamicEvent","type":"event"}]`,
 		`
 			// Generate a new random account and a funded simulator
 			key, _ := crypto.GenerateKey()
@@ -638,19 +638,19 @@ var bindTests = []struct {
 			defer sit.Close()
 
 			sit.Next()
-			if sit.Event.Value.Uint64() != 11 || !sit.Event.Flag {
+			if sit.Event.Quantity.Uint64() != 11 || !sit.Event.Flag {
 				t.Errorf("simple log content mismatch: have %v, want {11, true}", sit.Event)
 			}
 			sit.Next()
-			if sit.Event.Value.Uint64() != 21 || !sit.Event.Flag {
+			if sit.Event.Quantity.Uint64() != 21 || !sit.Event.Flag {
 				t.Errorf("simple log content mismatch: have %v, want {21, true}", sit.Event)
 			}
 			sit.Next()
-			if sit.Event.Value.Uint64() != 31 || !sit.Event.Flag {
+			if sit.Event.Quantity.Uint64() != 31 || !sit.Event.Flag {
 				t.Errorf("simple log content mismatch: have %v, want {31, true}", sit.Event)
 			}
 			sit.Next()
-			if sit.Event.Value.Uint64() != 33 || !sit.Event.Flag {
+			if sit.Event.Quantity.Uint64() != 33 || !sit.Event.Flag {
 				t.Errorf("simple log content mismatch: have %v, want {33, true}", sit.Event)
 			}
 
@@ -721,7 +721,7 @@ var bindTests = []struct {
 
 			select {
 			case event := <-ch:
-				if event.Value.Uint64() != 255 {
+				if event.Quantity.Uint64() != 255 {
 					t.Errorf("simple log content mismatch: have %v, want 255", event)
 				}
 			case <-time.After(250 * time.Millisecond):

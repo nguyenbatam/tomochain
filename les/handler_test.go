@@ -543,7 +543,7 @@ func TestTransactionStatusLes2(t *testing.T) {
 	if _, err := chain.InsertChain(gchain); err != nil {
 		panic(err)
 	}
-	// wait until TxPool processes the inserted block
+	// wait until OrderPool processes the inserted block
 	for i := 0; i < 10; i++ {
 		if pending, _ := txpool.Stats(); pending == 1 {
 			break
@@ -564,7 +564,7 @@ func TestTransactionStatusLes2(t *testing.T) {
 	if _, err := chain.InsertChain(gchain); err != nil {
 		panic(err)
 	}
-	// wait until TxPool processes the reorg
+	// wait until OrderPool processes the reorg
 	for i := 0; i < 10; i++ {
 		if pending, _ := txpool.Stats(); pending == 3 {
 			break

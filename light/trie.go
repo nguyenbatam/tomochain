@@ -105,13 +105,13 @@ func (t *odrTrie) TryGet(key []byte) ([]byte, error) {
 	return res, err
 }
 
-// TryGetBestLeft returns the value of max left leaf
+// TryGetBestLeftKey returns the value of max left leaf
 // If a node was not found in the database, a MissingNodeError is returned.
 func (t *odrTrie) TryGetBestLeft() ([]byte, error) {
 	return t.trie.TryGetBestLeft()
 }
 
-// TryGetBestRight returns the value of max left leaf
+// TryGetBestRightKey returns the value of max left leaf
 // If a node was not found in the database, a MissingNodeError is returned.
 func (t *odrTrie) TryGetBestRight() ([]byte, error) {
 	return t.trie.TryGetBestRight()

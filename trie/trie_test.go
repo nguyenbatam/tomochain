@@ -67,8 +67,8 @@ func TestNull(t *testing.T) {
 	fmt.Println(common.Bytes2Hex(trie.Get(key)))
 }
 func TestTryGetBestLeftRight(t *testing.T) {
-	min := uint64(rand.Intn(100000))
-	max := uint64(rand.Intn(1000000))
+	min := uint64(1)
+	max := uint64(1000)
 	if min > max {
 		a := min
 		min = max
@@ -77,8 +77,9 @@ func TestTryGetBestLeftRight(t *testing.T) {
 	j := uint64(0)
 	var trie Trie
 	for j = min; j <= max; j++ {
-		key := common.BigToHash(big.NewInt(0).SetUint64(j)).Bytes()
-		trie.Update(key, key)
+		key := new(big.Int).SetUint64(j)
+		value := new(big.Int).Mul(key,big.NewInt(1))
+		trie.Update(common.BigToHash(key).Bytes(), common.BigToHash(value).Bytes())
 	}
 	node, err := trie.TryGetBestLeft()
 	if err != nil {

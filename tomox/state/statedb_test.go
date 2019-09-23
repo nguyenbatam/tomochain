@@ -17,25 +17,18 @@
 package state
 
 import (
-	"bytes"
 	"fmt"
 	"github.com/ethereum/go-ethereum/cmd/utils"
-	"github.com/ethereum/go-ethereum/core/state"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/eth"
+	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/tomochain/tomox-sdk/types"
 	"math"
 	"math/big"
 	"math/rand"
 	"os"
-	"reflect"
 	"strings"
 	"testing"
-	"testing/quick"
-
-	"gopkg.in/check.v1"
-
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/ethdb"
 )
 
 // Tests that updating a state trie does not leak any database writes prior to
@@ -43,13 +36,13 @@ import (
 func TestUpdateLeaks(t *testing.T) {
 	// Create an empty statedb database
 	db, _ := ethdb.NewMemDatabase()
-	statedb, _ := New(common.Hash{}, state.NewDatabase(db))
+	statedb, _ := New(common.Hash{}, NewDatabase(db))
 
 	// Update it with some exchanges
 	for i := byte(0); i < 255; i++ {
 		addr := common.BytesToHash([]byte{i})
 		statedb.SetNonce(addr, uint64(42*i))
-		statedb.IntermediateRoot(false)
+		statedb.IntermediateRoot()
 	}
 	// Ensure that no data was leaked into the database
 	for _, key := range db.Keys() {
@@ -64,8 +57,8 @@ func TestIntermediateLeaks(t *testing.T) {
 	// Create two state databases, one transitioning to the final state, the other final from the beginning
 	transDb, _ := ethdb.NewMemDatabase()
 	finalDb, _ := ethdb.NewMemDatabase()
-	transState, _ := New(common.Hash{}, state.NewDatabase(transDb))
-	finalState, _ := New(common.Hash{}, state.NewDatabase(finalDb))
+	transState, _ := New(common.Hash{}, NewDatabase(transDb))
+	finalState, _ := New(common.Hash{}, NewDatabase(finalDb))
 
 	modify := func(state *StateDB, addr common.Hash, i, tweak byte) {
 		state.SetNonce(addr, uint64(42*i+tweak))
@@ -76,7 +69,7 @@ func TestIntermediateLeaks(t *testing.T) {
 		modify(transState, common.Hash{byte(i)}, i, 0)
 	}
 	// Write modifications to trie.
-	transState.IntermediateRoot(false)
+	transState.IntermediateRoot()
 
 	// Overwrite all the data with new values in the transient database.
 	for i := byte(0); i < 255; i++ {
@@ -111,14 +104,14 @@ func TestIntermediateLeaks(t *testing.T) {
 func TestCopy(t *testing.T) {
 	// Create a random state test to copy and modify "independently"
 	db, _ := ethdb.NewMemDatabase()
-	orig, _ := New(common.Hash{}, state.NewDatabase(db))
+	orig, _ := New(common.Hash{}, NewDatabase(db))
 
 	for i := byte(0); i < 255; i++ {
 		obj := orig.GetOrNewStateExchangeObject(common.BytesToHash([]byte{i}))
 		obj.SetNonce(uint64(i))
 		orig.updateStateExchangeObject(obj)
 	}
-	orig.Finalise(false)
+	orig.Finalise()
 
 	// Copy the state, modify both in-memory
 	copy := orig.Copy()
@@ -136,10 +129,10 @@ func TestCopy(t *testing.T) {
 	// Finalise the changes on both concurrently
 	done := make(chan struct{})
 	go func() {
-		orig.Finalise(true)
+		orig.Finalise()
 		close(done)
 	}()
-	copy.Finalise(true)
+	copy.Finalise()
 	<-done
 
 	// Verify that the two states have been updated independently
@@ -156,17 +149,6 @@ func TestCopy(t *testing.T) {
 	}
 }
 
-func TestSnapshotRandom(t *testing.T) {
-	config := &quick.Config{MaxCount: 1000}
-	err := quick.Check((*snapshotTest).run, config)
-	if cerr, ok := err.(*quick.CheckError); ok {
-		test := cerr.In[0].(*snapshotTest)
-		t.Errorf("%v:\n%s", test.err, test)
-	} else if err != nil {
-		t.Error(err)
-	}
-}
-
 // A snapshotTest checks that reverting StateDB snapshots properly undoes all changes
 // captured by the snapshot. Instances of this test with pseudorandom content are created
 // by Generate.
@@ -178,12 +160,6 @@ func TestSnapshotRandom(t *testing.T) {
 // leading up to it are replayed on a fresh, empty state. The behaviour of all public
 // accessor methods on the reverted state must match the return value of the equivalent
 // methods on the replayed state.
-type snapshotTest struct {
-	addrs     []common.Hash // all orderId addresses
-	actions   []testAction  // modifications to the state
-	snapshots []int         // actions indexes at which snapshot is taken
-	err       error         // failure details are reported through this field
-}
 
 type testAction struct {
 	name   string
@@ -236,154 +212,54 @@ func newTestAction(addr common.Hash, r *rand.Rand) testAction {
 	return action
 }
 
-// Generate returns a new snapshot test of the given size. All randomness is
-// derived from r.
-func (*snapshotTest) Generate(r *rand.Rand, size int) reflect.Value {
-	// Generate random actions.
-	addrs := make([]common.Hash, 50)
-	for i := range addrs {
-		addrs[i][0] = byte(i)
-	}
-	actions := make([]testAction, size)
-	for i := range actions {
-		addr := addrs[r.Intn(len(addrs))]
-		actions[i] = newTestAction(addr, r)
-	}
-	// Generate snapshot indexes.
-	nsnapshots := int(math.Sqrt(float64(size)))
-	if size > 0 && nsnapshots == 0 {
-		nsnapshots = 1
-	}
-	snapshots := make([]int, nsnapshots)
-	snaplen := len(actions) / nsnapshots
-	for i := range snapshots {
-		// Try to place the snapshots some number of actions apart from each other.
-		snapshots[i] = (i * snaplen) + r.Intn(snaplen)
-	}
-	return reflect.ValueOf(&snapshotTest{addrs, actions, snapshots, nil})
-}
-
-func (test *snapshotTest) String() string {
-	out := new(bytes.Buffer)
-	sindex := 0
-	for i, action := range test.actions {
-		if len(test.snapshots) > sindex && i == test.snapshots[sindex] {
-			fmt.Fprintf(out, "---- snapshot %d ----\n", sindex)
-			sindex++
-		}
-		fmt.Fprintf(out, "%4d: %s\n", i, action.name)
-	}
-	return out.String()
-}
-
-func (test *snapshotTest) run() bool {
-	// Run all actions and create snapshots.
-	var (
-		db, _        = ethdb.NewMemDatabase()
-		state, _     = New(common.Hash{}, state.NewDatabase(db))
-		snapshotRevs = make([]int, len(test.snapshots))
-		sindex       = 0
-	)
-	for i, action := range test.actions {
-		if len(test.snapshots) > sindex && i == test.snapshots[sindex] {
-			snapshotRevs[sindex] = state.Snapshot()
-			sindex++
-		}
-		action.fn(action, state)
-	}
-	// Revert all snapshots in reverse order. Each revert must yield a state
-	// that is equivalent to fresh state with all actions up the snapshot applied.
-	for sindex--; sindex >= 0; sindex-- {
-		checkstate, _ := New(common.Hash{}, state.Database())
-		for _, action := range test.actions[:test.snapshots[sindex]] {
-			action.fn(action, checkstate)
-		}
-		state.RevertToSnapshot(snapshotRevs[sindex])
-		if err := test.checkEqual(state, checkstate); err != nil {
-			test.err = fmt.Errorf("state mismatch after revert to snapshot %d\n%v", sindex, err)
-			return false
-		}
-	}
-	return true
-}
-
-// checkEqual checks that methods of state and checkstate return the same values.
-func (test *snapshotTest) checkEqual(state, checkstate *StateDB) error {
-	for _, addr := range test.addrs {
-		var err error
-		checkeq := func(op string, a, b interface{}) bool {
-			if err == nil && !reflect.DeepEqual(a, b) {
-				err = fmt.Errorf("got %s(%s) == %v, want %v", op, addr.Hex(), a, b)
-				return false
-			}
-			return true
-		}
-		// Check basic accessor methods.
-		checkeq("Exist", state.Exist(addr), checkstate.Exist(addr))
-		checkeq("GetNonce", state.GetNonce(addr), checkstate.GetNonce(addr))
-		// Check storage.
-		//if obj := state.getStateExchangeObject(addr); obj != nil {
-		//	state.ForEachStorage(addr, func(orderId, val common.Hash) bool {
-		//		return checkeq("GetState("+orderId.Hex()+")", val, checkstate.GetState(addr, orderId))
-		//	})
-		//	checkstate.ForEachStorage(addr, func(orderId, checkval common.Hash) bool {
-		//		return checkeq("GetState("+orderId.Hex()+")", state.GetState(addr, orderId), checkval)
-		//	})
-		//}
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-func (s *StateSuite) TestTouchDelete(c *check.C) {
-	s.state.GetOrNewStateExchangeObject(common.Hash{})
-	root, _ := s.state.Commit(false)
-	s.state.Reset(root)
-
-	snapshot := s.state.Snapshot()
-	s.state.SetNonce(common.Hash{}, 0)
-	if len(s.state.stateExhangeObjectsDirty) != 1 {
-		c.Fatal("expected one dirty state object")
-	}
-	s.state.RevertToSnapshot(snapshot)
-	if len(s.state.stateExhangeObjectsDirty) != 0 {
-		c.Fatal("expected no dirty state object")
-	}
-}
-
 func TestEchangeStates(t *testing.T) {
 	dir := "/home/tamnb/_projects/tomochain/src/github.com/ethereum/go-ethereum/devnet/test"
-	os.Remove(dir)
+	os.RemoveAll(dir)
 	orderBook := common.StringToHash("BTC/TOMO")
-	numberOrder := 250;
-	orderItems := []OrderItem{}
+	numberOrder := 2500;
+	orderItems := []orderItem{}
 	relayers := []common.Hash{}
 	for i := 0; i < numberOrder; i++ {
 		relayers = append(relayers, common.BigToHash(big.NewInt(int64(i))))
-		orderItems = append(orderItems, OrderItem{Amount: *big.NewInt(int64(2*i + 1)), OrderType: types.SELL})
-		orderItems = append(orderItems, OrderItem{Amount: *big.NewInt(int64(2*i + 1)), OrderType: types.BUY})
+		orderItems = append(orderItems, orderItem{Amount: big.NewInt(int64(2*i + 1)), OrderType: types.SELL})
+		orderItems = append(orderItems, orderItem{Amount: big.NewInt(int64(2*i + 1)), OrderType: types.BUY})
 	}
 	// Create an empty statedb database
 	db, _ := ethdb.NewLDBDatabase(dir, eth.DefaultConfig.DatabaseCache, utils.MakeDatabaseHandles())
-	stateCache := state.NewDatabase(db)
+	stateCache := NewDatabase(db)
 	statedb, _ := New(common.Hash{}, stateCache)
 
 	// Update it with some exchanges
 	for i := 0; i < numberOrder; i++ {
 		statedb.SetNonce(relayers[i], uint64(1))
 	}
+	mapPriceSell := map[uint64]uint64{}
+	mapPriceBuy := map[uint64]uint64{}
 	orderBookId := uint64(1)
 	for i := 0; i < len(orderItems); i++ {
 		id := new(big.Int).SetUint64(orderBookId)
 		orderId := common.BigToHash(id)
-		statedb.InsertOrderItem(orderBook, orderId, orderId, &orderItems[i].Amount, &orderItems[i].Amount, orderItems[i].OrderType)
+		amount := orderItems[i].Amount.Uint64()
+		statedb.InsertOrderItem(orderBook, orderId, orderId, orderItems[i].Amount, orderItems[i].Amount, orderItems[i].OrderType)
 		statedb.SetNonce(orderBook, orderBookId)
 		orderBookId = orderBookId + 1
+
+		switch orderItems[i].OrderType {
+		case types.SELL:
+			old := mapPriceSell[amount]
+			mapPriceSell[amount] = old + amount
+		case types.BUY:
+			old := mapPriceBuy[amount]
+			mapPriceBuy[amount] = old + amount
+		default:
+		}
 	}
 
+	copyStateDb := statedb.Copy()
+	copyStateDb.SubAmountOrderItem(orderBook, common.BigToHash(new(big.Int).SetUint64(1)), orderItems[0].Amount, orderItems[0].Amount, orderItems[0].OrderType)
+	orderId := new(big.Int).SetUint64(1)
+	fmt.Println(copyStateDb.GetOrderAmount(orderBook, common.BigToHash(orderId), orderId, orderItems[0].OrderType))
+	fmt.Println(statedb.GetOrderAmount(orderBook, common.BigToHash(orderId), orderId, orderItems[0].OrderType))
 	root, err := statedb.Commit(false)
 	if err != nil {
 		t.Fatalf("Error when commit into database: %v", err)
@@ -396,7 +272,7 @@ func TestEchangeStates(t *testing.T) {
 	db.Close()
 
 	db, _ = ethdb.NewLDBDatabase("/home/tamnb/_projects/tomochain/src/github.com/ethereum/go-ethereum/devnet/test", eth.DefaultConfig.DatabaseCache, utils.MakeDatabaseHandles())
-	stateCache = state.NewDatabase(db)
+	stateCache = NewDatabase(db)
 	statedb, err = New(root, stateCache)
 	if err != nil {
 		t.Fatalf("Error when get trie in database: %s , err: %v", root.Hex(), err)
@@ -409,15 +285,165 @@ func TestEchangeStates(t *testing.T) {
 	}
 	statedb.GetNonce(orderBook)
 	for i := 0; i < len(orderItems); i++ {
-		id := new(big.Int).SetUint64(uint64(i+1))
+		id := new(big.Int).SetUint64(uint64(i + 1))
 		orderId := common.BigToHash(id)
 		orderItem := statedb.GetOrderItem(orderBook, orderId)
 		if orderItem == nil {
 			t.Fatalf("Error == nil when get Order Item save in database: orderId %s ", orderId.Hex())
 		}
-		if orderItem.Amount.Cmp(&orderItems[i].Amount) != 0 {
+		if orderItem.Amount.Cmp(orderItems[i].Amount) != 0 {
 			t.Fatalf("Error when get nonce save in database: orderId %s ,got : %d , wanted : %d ", orderId.Hex(), orderItem.Amount.Uint64(), orderItems[i].Amount.Uint64())
 		}
 	}
+
+	minSell := uint64(math.MaxUint64)
+	for price, amount := range mapPriceSell {
+		data := statedb.GetVolume(orderBook, new(big.Int).SetUint64(price), Ask)
+		if data.Uint64() != amount {
+			t.Fatalf("Error when get volume save in database: price  %d ,got : %d , wanted : %d ", price, data.Uint64(), amount)
+		}
+		if price < minSell {
+			minSell = price
+		}
+	}
+	maxBuy := uint64(0)
+	for price, amount := range mapPriceBuy {
+		data := statedb.GetVolume(orderBook, new(big.Int).SetUint64(price), Bid)
+		if data.Uint64() != amount {
+			t.Fatalf("Error when get volume save in database: price  %d ,got : %d , wanted : %d ", price, data.Uint64(), amount)
+		}
+		if price > maxBuy {
+			maxBuy = price
+		}
+	}
+	fmt.Println("===============>")
+	bestAsk, err := statedb.GetBestAskPrice(orderBook)
+	if err != nil {
+		t.Fatalf("Error when get best ask trie in orderBook: %s , err: %v", orderBook.Hex(), err)
+	}
+	fmt.Println("===============>")
+	bestBid, err := statedb.GetBestBidPrice(orderBook)
+	if err != nil {
+		t.Fatalf("Error when get best bid trie in orderBook: %s , err: %v", orderBook.Hex(), err)
+	}
+	fmt.Println("best price ", bestBid, bestAsk, minSell, maxBuy)
 	db.Close()
+}
+
+func TestMemmory(t *testing.T) {
+	dir := "/home/tamnb/_projects/tomochain/src/github.com/ethereum/go-ethereum/devnet/test"
+	err := os.RemoveAll(dir)
+	orderBook := common.StringToHash("BTC/TOMO")
+	numberOrder := 500000;
+	orderItems := []orderItem{}
+	relayers := []common.Hash{}
+	for i := 0; i < numberOrder; i++ {
+		relayers = append(relayers, common.BigToHash(big.NewInt(int64(i))))
+		rand := rand.Intn(numberOrder/10 + i)
+		orderItems = append(orderItems, orderItem{Amount: big.NewInt(int64(rand)), OrderType: types.SELL})
+		orderItems = append(orderItems, orderItem{Amount: big.NewInt(int64(rand)), OrderType: types.BUY})
+	}
+	// Create an empty statedb database
+	db, _ := ethdb.NewLDBDatabase(dir, eth.DefaultConfig.DatabaseCache, utils.MakeDatabaseHandles())
+	stateCache := NewDatabase(db)
+	statedb, _ := New(common.Hash{}, stateCache)
+
+	// Update it with some exchanges
+	for i := 0; i < numberOrder; i++ {
+		statedb.SetNonce(relayers[i], uint64(1))
+	}
+	mapPriceSell := map[uint64]uint64{}
+	mapPriceBuy := map[uint64]uint64{}
+	orderBookId := uint64(1)
+	for i := 0; i < len(orderItems); i++ {
+		id := new(big.Int).SetUint64(orderBookId)
+		orderId := common.BigToHash(id)
+		amount := orderItems[i].Amount.Uint64()
+		statedb.InsertOrderItem(orderBook, orderId, orderId, orderItems[i].Amount, orderItems[i].Amount, orderItems[i].OrderType)
+		statedb.SetNonce(orderBook, orderBookId)
+		orderBookId = orderBookId + 1
+
+		switch orderItems[i].OrderType {
+		case types.SELL:
+			old := mapPriceSell[amount]
+			mapPriceSell[amount] = old + amount
+		case types.BUY:
+			old := mapPriceBuy[amount]
+			mapPriceBuy[amount] = old + amount
+		default:
+		}
+	}
+	fmt.Println("finish insert")
+	//copyStateDb := statedb.Copy()
+	//copyStateDb.SubAmountOrderItem(orderBook,common.BigToHash(new(big.Int).SetUint64(1)),orderItems[0].Amount,orderItems[0].Amount,orderItems[0].OrderType)
+	//fmt.Println(copyStateDb.GetOrderAmount(orderBook,common.BigToHash(new(big.Int).SetUint64(1))))
+	//fmt.Println(statedb.GetOrderAmount(orderBook,common.BigToHash(new(big.Int).SetUint64(1))))
+	root, err := statedb.Commit(false)
+	if err != nil {
+		t.Fatalf("Error when commit into database: %v", err)
+	}
+	fmt.Println("root", root.Hex())
+	err = stateCache.TrieDB().Commit(root, false)
+	if err != nil {
+		t.Errorf("Error when commit into database: %v", err)
+	}
+	db.Close()
+	//
+	//db, _ = ethdb.NewLDBDatabase("/home/tamnb/_projects/tomochain/src/github.com/ethereum/go-ethereum/devnet/test", eth.DefaultConfig.DatabaseCache, utils.MakeDatabaseHandles())
+	//stateCache = NewDatabase(db)
+	//statedb, err = New(root, stateCache)
+	//if err != nil {
+	//	t.Fatalf("Error when get trie in database: %s , err: %v", root.Hex(), err)
+	//}
+	//for i := 0; i < numberOrder; i++ {
+	//	nonce := statedb.GetNonce(relayers[i])
+	//	if nonce != uint64(1) {
+	//		t.Fatalf("Error when get nonce save in database: got : %d , wanted : %d ", nonce, i)
+	//	}
+	//}
+	//statedb.GetNonce(orderBook)
+	//for i := 0; i < len(orderItems); i++ {
+	//	id := new(big.Int).SetUint64(uint64(i + 1))
+	//	orderId := common.BigToHash(id)
+	//	orderItem := statedb.GetOrderAmount(orderBook, orderId)
+	//	if orderItem == nil {
+	//		t.Fatalf("Error == nil when get Order Item save in database: orderId %s ", orderId.Hex())
+	//	}
+	//	if orderItem.Amount.Cmp(orderItems[i].Amount) != 0 {
+	//		t.Fatalf("Error when get nonce save in database: orderId %s ,got : %d , wanted : %d ", orderId.Hex(), orderItem.Amount.Uint64(), orderItems[i].Amount.Uint64())
+	//	}
+	//}
+	//
+	//minSell := uint64(math.MaxUint64)
+	//for price, amount := range mapPriceSell {
+	//	data := statedb.GetVolume(orderBook, new(big.Int).SetUint64(price), Ask)
+	//	if data.Uint64() != amount {
+	//		t.Fatalf("Error when get volume save in database: price  %d ,got : %d , wanted : %d ", price, data.Uint64(), amount)
+	//	}
+	//	if price < minSell {
+	//		minSell = price
+	//	}
+	//}
+	//maxBuy := uint64(0)
+	//for price, amount := range mapPriceBuy {
+	//	data := statedb.GetVolume(orderBook, new(big.Int).SetUint64(price), Bid)
+	//	if data.Uint64() != amount {
+	//		t.Fatalf("Error when get volume save in database: price  %d ,got : %d , wanted : %d ", price, data.Uint64(), amount)
+	//	}
+	//	if price > maxBuy {
+	//		maxBuy = price
+	//	}
+	//}
+	//fmt.Println("===============>")
+	//bestAsk, err := statedb.GetBestAskPrice(orderBook)
+	//if err != nil {
+	//	t.Fatalf("Error when get best ask trie in orderBook: %s , err: %v", orderBook.Hex(), err)
+	//}
+	//fmt.Println("===============>")
+	//bestBid, err := statedb.GetBestBidPrice(orderBook)
+	//if err != nil {
+	//	t.Fatalf("Error when get best bid trie in orderBook: %s , err: %v", orderBook.Hex(), err)
+	//}
+	//fmt.Println("best price ", bestBid, bestAsk, minSell, maxBuy)
+	//db.Close()
 }

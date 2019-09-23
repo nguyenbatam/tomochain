@@ -201,7 +201,7 @@ func (stats serverStats) render() {
 	// Start gathering service statistics and config parameters
 	table := tablewriter.NewWriter(os.Stdout)
 
-	table.SetHeader([]string{"Server", "Address", "Service", "Config", "Value"})
+	table.SetHeader([]string{"Server", "Address", "Service", "Config", "Quantity"})
 	table.SetAlignment(tablewriter.ALIGN_LEFT)
 	table.SetColWidth(100)
 

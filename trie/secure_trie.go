@@ -80,15 +80,19 @@ func (t *SecureTrie) TryGet(key []byte) ([]byte, error) {
 	return t.trie.TryGet(t.hashKey(key))
 }
 
-// TryGetBestLeft returns the value of max left leaf
+// TryGetBestLeftKey returns the value of max left leaf
 // If a node was not found in the database, a MissingNodeError is returned.
-func (t *SecureTrie) TryGetBestLeft() ([]byte, error) {
+func (t *SecureTrie) TryGetBestLeftKey() ([]byte, error) {
 	return t.trie.TryGetBestLeft()
 }
 
-// TryGetBestRight returns the value of max left leaf
+// TryGetBestRightKey returns the value of max left leaf
 // If a node was not found in the database, a MissingNodeError is returned.
-func (t *SecureTrie) TryGetBestRight() ([]byte, error) {
+func (t *SecureTrie) TryGetBestRightKey() ([]byte, error) {
+	return t.trie.TryGetBestRight()
+}
+
+func (t *SecureTrie) TryGetBestLeftKeyAndValue() ([]byte, error) {
 	return t.trie.TryGetBestRight()
 }
 

@@ -17,7 +17,7 @@ func TestGauge(t *testing.T) {
 	g := NewGauge()
 	g.Update(int64(47))
 	if v := g.Value(); 47 != v {
-		t.Errorf("g.Value(): 47 != %v\n", v)
+		t.Errorf("g.Quantity(): 47 != %v\n", v)
 	}
 }
 
@@ -27,7 +27,7 @@ func TestGaugeSnapshot(t *testing.T) {
 	snapshot := g.Snapshot()
 	g.Update(int64(0))
 	if v := snapshot.Value(); 47 != v {
-		t.Errorf("g.Value(): 47 != %v\n", v)
+		t.Errorf("g.Quantity(): 47 != %v\n", v)
 	}
 }
 

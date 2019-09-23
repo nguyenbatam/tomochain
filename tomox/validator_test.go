@@ -165,7 +165,7 @@ func TestOrderItem_VerifyMatchedOrder(t *testing.T) {
 
 	// after pass verifyBalance, order should fail verifySignature
 	// wrong hash
-	if err := order.VerifyMatchedOrder(stateDb); err != errWrongHash {
+	if err := order.VerifyMatchedOrder(stateDb); err != ErrWrongHash {
 		t.Error(err)
 	}
 
@@ -192,7 +192,7 @@ func TestOrderItem_VerifyMatchedOrder(t *testing.T) {
 	order.Signature = sig
 
 	// wrong signature
-	if err := order.VerifyMatchedOrder(stateDb); err != errInvalidSignature {
+	if err := order.VerifyMatchedOrder(stateDb); err != ErrInvalidSignature {
 		t.Error(err)
 	}
 

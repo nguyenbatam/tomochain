@@ -65,7 +65,7 @@ func (GaugeSnapshot) Update(int64) {
 	panic("Update called on a GaugeSnapshot")
 }
 
-// Value returns the value at the time the snapshot was taken.
+// Quantity returns the value at the time the snapshot was taken.
 func (g GaugeSnapshot) Value() int64 { return int64(g) }
 
 // NilGauge is a no-op Gauge.
@@ -77,7 +77,7 @@ func (NilGauge) Snapshot() Gauge { return NilGauge{} }
 // Update is a no-op.
 func (NilGauge) Update(v int64) {}
 
-// Value is a no-op.
+// Quantity is a no-op.
 func (NilGauge) Value() int64 { return 0 }
 
 // StandardGauge is the standard implementation of a Gauge and uses the
@@ -96,7 +96,7 @@ func (g *StandardGauge) Update(v int64) {
 	atomic.StoreInt64(&g.value, v)
 }
 
-// Value returns the gauge's current value.
+// Quantity returns the gauge's current value.
 func (g *StandardGauge) Value() int64 {
 	return atomic.LoadInt64(&g.value)
 }
@@ -106,7 +106,7 @@ type FunctionalGauge struct {
 	value func() int64
 }
 
-// Value returns the gauge's current value.
+// Quantity returns the gauge's current value.
 func (g FunctionalGauge) Value() int64 {
 	return g.value()
 }

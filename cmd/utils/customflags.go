@@ -32,7 +32,7 @@ import (
 )
 
 // Custom type which is registered in the flags library which cli uses for
-// argument parsing. This allows us to expand Value to an absolute path when
+// argument parsing. This allows us to expand Quantity to an absolute path when
 // the argument is parsed
 type DirectoryString struct {
 	Value string
@@ -84,7 +84,7 @@ type TextMarshaler interface {
 	encoding.TextUnmarshaler
 }
 
-// textMarshalerVal turns a TextMarshaler into a flag.Value
+// textMarshalerVal turns a TextMarshaler into a flag.Quantity
 type textMarshalerVal struct {
 	v TextMarshaler
 }
@@ -139,7 +139,7 @@ type BigFlag struct {
 	Usage string
 }
 
-// bigValue turns *big.Int into a flag.Value
+// bigValue turns *big.Int into a flag.Quantity
 type bigValue big.Int
 
 func (b *bigValue) String() string {

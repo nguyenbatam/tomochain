@@ -695,6 +695,9 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		}
 		pm.txpool.AddRemotes(txs)
 
+	case msg.Code == NewOrderMsg:
+
+
 	default:
 		return errResp(ErrInvalidMsgCode, "%v", msg.Code)
 	}

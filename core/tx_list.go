@@ -47,7 +47,7 @@ func (h *nonceHeap) Pop() interface{} {
 	return x
 }
 
-// txSortedMap is a nonce->transaction hash map with a heap based index to allow
+// orderSortedMap is a nonce->transaction hash map with a heap based index to allow
 // iterating over the contents in a nonce-incrementing way.
 type txSortedMap struct {
 	items map[uint64]*types.Transaction // Hash map storing the transaction data
@@ -55,7 +55,7 @@ type txSortedMap struct {
 	cache types.Transactions            // Cache of the transactions already sorted
 }
 
-// newTxSortedMap creates a new nonce-sorted transaction map.
+// newOrderSortedMap creates a new nonce-sorted transaction map.
 func newTxSortedMap() *txSortedMap {
 	return &txSortedMap{
 		items: make(map[uint64]*types.Transaction),
@@ -215,7 +215,7 @@ func (m *txSortedMap) Flatten() types.Transactions {
 	return txs
 }
 
-// txList is a "list" of transactions belonging to an account, sorted by account
+// orderList is a "list" of transactions belonging to an account, sorted by account
 // nonce. The same type can be used both for storing contiguous transactions for
 // the executable/pending queue; and for storing gapped transactions for the non-
 // executable/future queue, with minor behavioral changes.
@@ -227,7 +227,7 @@ type txList struct {
 	gascap  uint64   // Gas limit of the highest spending transaction (reset only if exceeds block limit)
 }
 
-// newTxList create a new transaction list for maintaining nonce-indexable fast,
+// newOrderList create a new transaction list for maintaining nonce-indexable fast,
 // gapped, sortable transaction lists.
 func newTxList(strict bool) *txList {
 	return &txList{
@@ -374,7 +374,7 @@ func (l *txList) Flatten() types.Transactions {
 	return l.txs.Flatten()
 }
 
-// priceHeap is a heap.Interface implementation over transactions for retrieving
+// timingHeap is a heap.Interface implementation over transactions for retrieving
 // price-sorted transactions to discard when the pool fills up.
 type priceHeap []*types.Transaction
 
@@ -394,7 +394,7 @@ func (h *priceHeap) Pop() interface{} {
 	return x
 }
 
-// txPricedList is a price-sorted heap to allow operating on transactions pool
+// orderTimingList is a price-sorted heap to allow operating on transactions pool
 // contents in a price-incrementing way.
 type txPricedList struct {
 	all    *map[common.Hash]*types.Transaction // Pointer to the map of all transactions
@@ -402,7 +402,7 @@ type txPricedList struct {
 	stales int                                 // Number of stale price points to (re-heap trigger)
 }
 
-// newTxPricedList creates a new price-sorted transaction heap.
+// newOrderTimingList creates a new price-sorted transaction heap.
 func newTxPricedList(all *map[common.Hash]*types.Transaction) *txPricedList {
 	return &txPricedList{
 		all:   all,

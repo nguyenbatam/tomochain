@@ -650,7 +650,7 @@ func contains(ns []*Node, id NodeID) bool {
 	return false
 }
 
-// gen wraps quick.Value so it's easier to use.
+// gen wraps quick.Quantity so it's easier to use.
 // it generates a random value of the given value's type.
 func gen(typ interface{}, rand *rand.Rand) interface{} {
 	v, ok := quick.Value(reflect.TypeOf(typ), rand)

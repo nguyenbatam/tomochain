@@ -23,7 +23,7 @@ func (tree *Tree) Iterator() Iterator {
 }
 
 // Next moves the iterator to the next element and returns true if there was a next element in the container.
-// If Next() returns true, then next element's key and value can be retrieved by Key() and Value().
+// If Next() returns true, then next element's key and value can be retrieved by Key() and Quantity().
 // If Next() was called for the first time, then it will point the iterator to the first element if it exists.
 // Modifies the state of the iterator.
 func (iterator *Iterator) Next(dryrun bool) bool {
@@ -75,7 +75,7 @@ between:
 }
 
 // Prev moves the iterator to the previous element and returns true if there was a previous element in the container.
-// If Prev() returns true, then previous element's key and value can be retrieved by Key() and Value().
+// If Prev() returns true, then previous element's key and value can be retrieved by Key() and Quantity().
 // Modifies the state of the iterator.
 func (iterator *Iterator) Prev(dryrun bool) bool {
 	if iterator.position == begin {
@@ -116,7 +116,7 @@ between:
 	return true
 }
 
-// Value returns the current element's value.
+// Quantity returns the current element's value.
 // Does not modify the state of the iterator.
 func (iterator *Iterator) Value() []byte {
 	return iterator.node.Item.Value
@@ -143,7 +143,7 @@ func (iterator *Iterator) End() {
 }
 
 // First moves the iterator to the first element and returns true if there was a first element in the container.
-// If First() returns true, then first element's key and value can be retrieved by Key() and Value().
+// If First() returns true, then first element's key and value can be retrieved by Key() and Quantity().
 // Modifies the state of the iterator
 func (iterator *Iterator) First(dryrun bool) bool {
 	iterator.Begin()
@@ -151,7 +151,7 @@ func (iterator *Iterator) First(dryrun bool) bool {
 }
 
 // Last moves the iterator to the last element and returns true if there was a last element in the container.
-// If Last() returns true, then last element's key and value can be retrieved by Key() and Value().
+// If Last() returns true, then last element's key and value can be retrieved by Key() and Quantity().
 // Modifies the state of the iterator.
 func (iterator *Iterator) Last(dryrun bool) bool {
 	iterator.End()

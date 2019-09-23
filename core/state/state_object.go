@@ -383,5 +383,5 @@ func (self *stateObject) Nonce() uint64 {
 // as a vm.Account interface that also satisfies the vm.ContractRef
 // interface. Interfaces are awesome.
 func (self *stateObject) Value() *big.Int {
-	panic("Value on stateObject should never be called")
+	panic("Quantity on stateObject should never be called")
 }

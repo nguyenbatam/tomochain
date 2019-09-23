@@ -93,7 +93,7 @@ var (
 // 	if reflect.TypeOf(p) != exptype {
 // 		return test.errorf("sent packet type mismatch, got: %v, want: %v", reflect.TypeOf(p), exptype)
 // 	}
-// 	fn.Call([]reflect.Value{reflect.ValueOf(p)})
+// 	fn.Call([]reflect.Quantity{reflect.ValueOf(p)})
 // 	return nil
 // }
 //

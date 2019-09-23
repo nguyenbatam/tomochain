@@ -49,7 +49,7 @@ func (self *StateDB) RawDump() Dump {
 	it := trie.NewIterator(self.trie.NodeIterator(nil))
 	for it.Next() {
 		addr := self.trie.GetKey(it.Key)
-		var data ExchangeObject
+		var data exchangeObject
 		if err := rlp.DecodeBytes(it.Value, &data); err != nil {
 			panic(err)
 		}

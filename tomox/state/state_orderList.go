@@ -19,7 +19,6 @@ package state
 import (
 	"bytes"
 	"fmt"
-	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/tomox"
 	"io"
 	"math/big"
@@ -32,13 +31,13 @@ import (
 //
 // The usage pattern is as follows:
 // First you need to obtain a state object.
-// ExchangeObject values can be accessed and modified through the object.
+// exchangeObject values can be accessed and modified through the object.
 // Finally, call CommitAskTrie to write the modified storage trie into a database.
 type stateOrderList struct {
 	price     common.Hash
 	orderBook common.Hash
 	orderType string
-	data      OrderList
+	data      orderList
 	db        *StateDB
 
 	// DB error.
@@ -49,7 +48,7 @@ type stateOrderList struct {
 	dbErr error
 
 	// Write caches.
-	trie state.Trie // storage trie, which becomes non-nil on first access
+	trie Trie // storage trie, which becomes non-nil on first access
 
 	cachedStorage map[common.Hash]common.Hash // Storage entry cache to avoid duplicate reads
 	dirtyStorage  map[common.Hash]common.Hash // Storage entries that need to be flushed to disk
@@ -60,18 +59,11 @@ type stateOrderList struct {
 
 // empty returns whether the orderId is considered empty.
 func (s *stateOrderList) empty() bool {
-	return s.data.Volume.Cmp(tomox.Zero()) == 0
-}
-
-// ExchangeObject is the Ethereum consensus representation of exchanges.
-// These objects are stored in the main orderId trie.
-type OrderList struct {
-	Volume big.Int
-	Root   common.Hash // merkle root of the storage trie
+	return s.deleted || s.data.Volume == nil || s.data.Volume.Cmp(tomox.Zero()) == 0
 }
 
 // newObject creates a state object.
-func newStateOrderList(db *StateDB, orderType string, orderBook common.Hash, price common.Hash, data OrderList, onDirty func(price common.Hash)) *stateOrderList {
+func newStateOrderList(db *StateDB, orderType string, orderBook common.Hash, price common.Hash, data orderList, onDirty func(price common.Hash)) *stateOrderList {
 	return &stateOrderList{
 		db:            db,
 		orderType:     orderType,
@@ -96,12 +88,12 @@ func (self *stateOrderList) setError(err error) {
 	}
 }
 
-func (c *stateOrderList) getTrie(db state.Database) state.Trie {
+func (c *stateOrderList) getTrie(db Database) Trie {
 	if c.trie == nil {
 		var err error
 		c.trie, err = db.OpenStorageTrie(c.price, c.data.Root)
 		if err != nil {
-			c.trie, _ = db.OpenStorageTrie(c.price, common.Hash{})
+			c.trie, _ = db.OpenStorageTrie(c.price, EmptyHash)
 			c.setError(fmt.Errorf("can't create storage trie: %v", err))
 		}
 	}
@@ -109,45 +101,44 @@ func (c *stateOrderList) getTrie(db state.Database) state.Trie {
 }
 
 // GetState returns a value in orderId storage.
-func (self *stateOrderList) GetOrderItem(db state.Database, orderId common.Hash) common.Hash {
-	value, exists := self.cachedStorage[orderId]
+func (self *stateOrderList) GetOrderAmount(db Database, orderId common.Hash) common.Hash {
+	amount, exists := self.cachedStorage[orderId]
 	if exists {
-		return value
+		return amount
 	}
 	// Load from DB in case it is missing.
 	enc, err := self.getTrie(db).TryGet(orderId[:])
 	if err != nil {
 		self.setError(err)
-		return common.Hash{}
+		return EmptyHash
 	}
 	if len(enc) > 0 {
 		_, content, _, err := rlp.Split(enc)
 		if err != nil {
 			self.setError(err)
 		}
-		value.SetBytes(content)
+		amount.SetBytes(content)
 	}
-	if (value != common.Hash{}) {
-		self.cachedStorage[orderId] = value
-	}
-	return value
+	self.cachedStorage[orderId] = amount
+	return amount
 }
 
 // SetState updates a value in orderId storage.
-func (self *stateOrderList) SetOrderItem(db state.Database, orderId common.Hash, hash common.Hash) {
-	self.db.journal = append(self.db.journal, SetOrderToList{
-		orderBook: &self.orderBook,
-		orderType: &self.orderType,
-		price:     &self.price,
-		orderId:   &orderId,
-		value:     self.GetOrderItem(db, orderId),
-	})
-	self.setOrderItem(orderId, hash)
+func (self *stateOrderList) insertOrderItem(db Database, orderId common.Hash, amount common.Hash) {
+	self.setOrderItem(orderId, amount)
+	self.setError(self.getTrie(db).TryUpdate(orderId[:], amount[:]))
 }
 
-func (self *stateOrderList) setOrderItem(orderId common.Hash, hash common.Hash) {
-	self.cachedStorage[orderId] = hash
-	self.dirtyStorage[orderId] = hash
+// SetState updates a value in orderId storage.
+func (self *stateOrderList) removeOrderItem(db Database, orderId common.Hash) {
+	tr := self.getTrie(db)
+	self.setError(tr.TryDelete(orderId[:]))
+	self.setOrderItem(orderId, EmptyHash)
+}
+
+func (self *stateOrderList) setOrderItem(orderId common.Hash, amount common.Hash) {
+	self.cachedStorage[orderId] = amount
+	self.dirtyStorage[orderId] = amount
 
 	if self.onDirty != nil {
 		self.onDirty(self.Price())
@@ -156,39 +147,25 @@ func (self *stateOrderList) setOrderItem(orderId common.Hash, hash common.Hash) 
 }
 
 // updateAskTrie writes cached storage modifications into the object's storage trie.
-func (self *stateOrderList) updateTrie(db state.Database) state.Trie {
+func (self *stateOrderList) updateTrie(db Database) Trie {
 	tr := self.getTrie(db)
-	for orderId, hash := range self.dirtyStorage {
+	for orderId, amount := range self.dirtyStorage {
 		delete(self.dirtyStorage, orderId)
-		if (hash == common.Hash{}) {
+		if (amount == EmptyHash) {
 			self.setError(tr.TryDelete(orderId[:]))
 			continue
 		}
 		// Encoding []byte cannot fail, ok to ignore the error.
-		v, _ := rlp.EncodeToBytes(bytes.TrimLeft(hash[:], "\x00"))
+		v, _ := rlp.EncodeToBytes(bytes.TrimLeft(amount[:], "\x00"))
 		self.setError(tr.TryUpdate(orderId[:], v))
 	}
 	return tr
 }
 
 // UpdateRoot sets the trie root to the current root orderId of
-func (self *stateOrderList) updateRoot(db state.Database) {
+func (self *stateOrderList) updateRoot(db Database) {
 	self.updateTrie(db)
 	self.data.Root = self.trie.Hash()
-}
-
-// CommitAskTrie the storage trie of the object to dwb.
-// This updates the trie root.
-func (self *stateOrderList) CommitTrie(db state.Database) error {
-	self.updateTrie(db)
-	if self.dbErr != nil {
-		return self.dbErr
-	}
-	root, err := self.trie.Commit(nil)
-	if err == nil {
-		self.data.Root = root
-	}
-	return err
 }
 
 func (self *stateOrderList) deepCopy(db *StateDB, onDirty func(price common.Hash)) *stateOrderList {
@@ -196,11 +173,11 @@ func (self *stateOrderList) deepCopy(db *StateDB, onDirty func(price common.Hash
 	if self.trie != nil {
 		stateOrderList.trie = db.db.CopyTrie(self.trie)
 	}
-	stateOrderList.dirtyStorage = make(map[common.Hash]common.Hash)
-	stateOrderList.cachedStorage = make(map[common.Hash]common.Hash)
-	for key, value := range self.dirtyStorage {
-		stateOrderList.dirtyStorage[key] = value
-		stateOrderList.cachedStorage[key] = value
+	for orderId, amount := range self.dirtyStorage {
+		stateOrderList.dirtyStorage[orderId] = amount
+	}
+	for orderId, amount := range self.cachedStorage {
+		stateOrderList.cachedStorage[orderId] = amount
 	}
 	stateOrderList.deleted = self.deleted
 	return stateOrderList
@@ -209,23 +186,16 @@ func (self *stateOrderList) deepCopy(db *StateDB, onDirty func(price common.Hash
 // AddVolume removes amount from c's balance.
 // It is used to add funds to the destination exchanges of a transfer.
 func (c *stateOrderList) AddVolume(amount *big.Int) {
-	c.setVolume(*new(big.Int).Add(&c.data.Volume, amount))
+	c.setVolume(new(big.Int).Add(c.data.Volume, amount))
 }
 
-//
-// Attribute accessors
-//
-func (self *stateOrderList) SetVolume(volume big.Int) {
-	self.db.journal = append(self.db.journal, volumeChange{
-		orderBook: &self.orderBook,
-		orderType: &self.orderType,
-		price:     &self.price,
-		prev:      self.data.Volume,
-	})
-	self.setVolume(volume)
+// AddVolume removes amount from c's balance.
+// It is used to add funds to the destination exchanges of a transfer.
+func (c *stateOrderList) subVolume(amount *big.Int) {
+	c.setVolume(new(big.Int).Sub(c.data.Volume, amount))
 }
 
-func (self *stateOrderList) setVolume(volume big.Int) {
+func (self *stateOrderList) setVolume(volume *big.Int) {
 	self.data.Volume = volume
 	if self.onDirty != nil {
 		self.onDirty(self.price)
@@ -238,6 +208,6 @@ func (c *stateOrderList) Price() common.Hash {
 	return c.price
 }
 
-func (self *stateOrderList) Volume() big.Int {
+func (self *stateOrderList) Volume() *big.Int {
 	return self.data.Volume
 }

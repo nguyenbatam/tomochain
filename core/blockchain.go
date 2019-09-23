@@ -102,9 +102,10 @@ type BlockChain struct {
 	chainConfig *params.ChainConfig // Chain & network configuration
 	cacheConfig *CacheConfig        // Cache configuration for pruning
 
-	db     ethdb.Database // Low level persistent database to store final content in
-	triegc *prque.Prque   // Priority queue mapping block numbers to tries to gc
-	gcproc time.Duration  // Accumulates canonical block processing for trie dumping
+	db      ethdb.Database // Low level persistent database to store final content in
+	tomoxdb ethdb.Database // Low level persistent database to store final content in
+	triegc  *prque.Prque   // Priority queue mapping block numbers to tries to gc
+	gcproc  time.Duration  // Accumulates canonical block processing for trie dumping
 
 	hc            *HeaderChain
 	rmLogsFeed    event.Feed
@@ -171,6 +172,7 @@ func NewBlockChain(db ethdb.Database, cacheConfig *CacheConfig, chainConfig *par
 		chainConfig:          chainConfig,
 		cacheConfig:          cacheConfig,
 		db:                   db,
+		tomoxdb:              nil,
 		triegc:               prque.New(),
 		stateCache:           state.NewDatabase(db),
 		quit:                 make(chan struct{}),

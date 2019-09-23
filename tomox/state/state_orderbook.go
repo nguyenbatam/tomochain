@@ -17,10 +17,8 @@
 package state
 
 import (
-	"bytes"
 	"fmt"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/ethereum/go-ethereum/tomox"
@@ -32,11 +30,11 @@ import (
 //
 // The usage pattern is as follows:
 // First you need to obtain a state object.
-// ExchangeObject values can be accessed and modified through the object.
+// exchangeObject values can be accessed and modified through the object.
 // Finally, call CommitAskTrie to write the modified storage trie into a database.
 type stateExchanges struct {
 	hash common.Hash // orderbookHashprice of ethereum address of the orderId
-	data ExchangeObject
+	data exchangeObject
 	db   *StateDB
 
 	// DB error.
@@ -47,21 +45,8 @@ type stateExchanges struct {
 	dbErr error
 
 	// Write caches.
-	asksTrie   state.Trie // storage trie, which becomes non-nil on first access
-	bidsTrie   state.Trie // storage trie, which becomes non-nil on first access
-	ordersTrie state.Trie // storage trie, which becomes non-nil on first access
-
-	cachedAsksStorage map[common.Hash]common.Hash // Storage entry cache to avoid duplicate reads
-	dirtyAsksStorage  map[common.Hash]common.Hash // Storage entries that need to be flushed to disk
-
-	cachedBidsStorage map[common.Hash]common.Hash // Storage entry cache to avoid duplicate reads
-	dirtyBidsStorage  map[common.Hash]common.Hash // Storage entries that need to be flushed to d
-
-	cachedOrdersStorage map[common.Hash]common.Hash // Storage entry cache to avoid duplicate reads
-	dirtyOrdersStorage  map[common.Hash]common.Hash // Storage entries that need to be flushed to d
-
-	stateOrderItems      map[common.Hash]*stateOrderItem // Storage entry cache to avoid duplicate reads
-	stateOrderItemsDirty map[common.Hash]struct{}        // Storage entries that need to be flushed to d
+	asksTrie             Trie // storage trie, which becomes non-nil on first access
+	bidsTrie             Trie // storage trie, which becomes non-nil on first access
 
 	stateAskObjects      map[common.Hash]*stateOrderList
 	stateAskObjectsDirty map[common.Hash]struct{}
@@ -77,31 +62,14 @@ func (s *stateExchanges) empty() bool {
 	return s.data.Nonce == 0 && common.EmptyHash(s.data.AskRoot) && common.EmptyHash(s.data.BidRoot) && common.EmptyHash(s.data.OrderRoot)
 }
 
-// ExchangeObject is the Ethereum consensus representation of exchanges.
-// These objects are stored in the main orderId trie.
-type ExchangeObject struct {
-	Nonce     uint64
-	AskRoot   common.Hash // merkle root of the storage trie
-	BidRoot   common.Hash // merkle root of the storage trie
-	OrderRoot common.Hash
-}
-
 // newObject creates a state object.
-func newStateExchanges(db *StateDB, hash common.Hash, data ExchangeObject, onDirty func(addr common.Hash)) *stateExchanges {
+func newStateExchanges(db *StateDB, hash common.Hash, data exchangeObject, onDirty func(addr common.Hash)) *stateExchanges {
 	return &stateExchanges{
 		db:                   db,
 		hash:                 hash,
 		data:                 data,
-		cachedAsksStorage:    make(map[common.Hash]common.Hash),
-		dirtyAsksStorage:     make(map[common.Hash]common.Hash),
-		cachedBidsStorage:    make(map[common.Hash]common.Hash),
-		dirtyBidsStorage:     make(map[common.Hash]common.Hash),
-		cachedOrdersStorage:  make(map[common.Hash]common.Hash),
-		dirtyOrdersStorage:   make(map[common.Hash]common.Hash),
-		stateOrderItems:      make(map[common.Hash]*stateOrderItem),
 		stateAskObjects:      make(map[common.Hash]*stateOrderList),
 		stateBidObjects:      make(map[common.Hash]*stateOrderList),
-		stateOrderItemsDirty: make(map[common.Hash]struct{}),
 		stateAskObjectsDirty: make(map[common.Hash]struct{}),
 		stateBidObjectsDirty: make(map[common.Hash]struct{}),
 		onDirty:              onDirty,
@@ -120,286 +88,143 @@ func (self *stateExchanges) setError(err error) {
 	}
 }
 
-func (c *stateExchanges) getAsksTrie(db state.Database) state.Trie {
+func (c *stateExchanges) getAsksTrie(db Database) Trie {
 	if c.asksTrie == nil {
 		var err error
 		c.asksTrie, err = db.OpenStorageTrie(c.hash, c.data.AskRoot)
 		if err != nil {
-			c.asksTrie, _ = db.OpenStorageTrie(c.hash, common.Hash{})
+			c.asksTrie, _ = db.OpenStorageTrie(c.hash, EmptyHash)
 			c.setError(fmt.Errorf("can't create asks trie: %v", err))
 		}
 	}
 	return c.asksTrie
 }
 
-// GetState returns a value in orderId storage.
-func (self *stateExchanges) GetAskOrderList(db state.Database, price common.Hash) common.Hash {
-	value, exists := self.cachedAsksStorage[price]
-	if exists {
-		return value
-	}
-	// Load from DB in case it is missing.
-	enc, err := self.getAsksTrie(db).TryGet(price[:])
+func (c *stateExchanges) getBestAsksTrie(db Database) *big.Int {
+	trie := c.getAsksTrie(db)
+	enc, err := trie.TryGetBestRightKey()
 	if err != nil {
-		self.setError(err)
-		return common.Hash{}
+		return nil
 	}
-	if len(enc) > 0 {
-		_, content, _, err := rlp.Split(enc)
-		if err != nil {
-			self.setError(err)
-		}
-		value.SetBytes(content)
-	}
-	if (value != common.Hash{}) {
-		self.cachedAsksStorage[price] = value
-	}
-	return value
+	return new(big.Int).SetBytes(enc)
 }
 
-// SetState updates a value in orderId storage.
-func (self *stateExchanges) SetAskPrice(db state.Database, price common.Hash, value common.Hash) {
-	self.db.journal = append(self.db.journal, asksChange{
-		orderBook: &self.hash,
-		price:     &price,
-		prevalue:  self.GetAskOrderList(db, price),
-	})
-	self.setAskPrice(price, value)
-}
-
-func (self *stateExchanges) setAskPrice(price common.Hash, value common.Hash) {
-	self.cachedAsksStorage[price] = value
-	self.dirtyAsksStorage[price] = value
-
-	if self.onDirty != nil {
-		self.onDirty(self.Hash())
-		self.onDirty = nil
+func (c *stateExchanges) getBestBidsTrie(db Database) *big.Int {
+	trie := c.getBidsTrie(db)
+	enc, err := trie.TryGetBestLeftKey()
+	if err != nil {
+		return nil
 	}
+	return new(big.Int).SetBytes(enc)
 }
 
 // updateAskTrie writes cached storage modifications into the object's storage trie.
-func (self *stateExchanges) updateAsksTrie(db state.Database) state.Trie {
+func (self *stateExchanges) updateAsksTrie(db Database) Trie {
 	tr := self.getAsksTrie(db)
-	for key, value := range self.dirtyAsksStorage {
-		delete(self.dirtyAsksStorage, key)
-		if (value != common.Hash{}) {
+	for key, _ := range self.stateAskObjectsDirty {
+		delete(self.stateAskObjectsDirty, key)
+		orderList := self.stateAskObjects[key]
+		if (orderList.empty()) {
 			self.setError(tr.TryDelete(key[:]))
 			continue
 		}
+		orderList.updateRoot(db)
 		// Encoding []byte cannot fail, ok to ignore the error.
-		v, _ := rlp.EncodeToBytes(bytes.TrimLeft(value.Bytes()[:], "\x00"))
+		v, _ := rlp.EncodeToBytes(orderList)
 		self.setError(tr.TryUpdate(key[:], v))
 	}
+
 	return tr
 }
 
 // UpdateRoot sets the trie root to the current root orderId of
-func (self *stateExchanges) updateAsksRoot(db state.Database) {
+func (self *stateExchanges) updateAsksRoot(db Database) {
 	self.updateAsksTrie(db)
 	self.data.AskRoot = self.asksTrie.Hash()
 }
 
 // CommitAskTrie the storage trie of the object to dwb.
 // This updates the trie root.
-func (self *stateExchanges) CommitAsksTrie(db state.Database) error {
+func (self *stateExchanges) CommitAsksTrie(db Database) error {
 	self.updateAsksTrie(db)
 	if self.dbErr != nil {
 		return self.dbErr
 	}
-	root, err := self.asksTrie.Commit(nil)
+	root, err := self.asksTrie.Commit(func(leaf []byte, parent common.Hash) error {
+		var orderList orderList
+		if err := rlp.DecodeBytes(leaf, &orderList); err != nil {
+			return nil
+		}
+		if orderList.Root != emptyState {
+			db.TrieDB().Reference(orderList.Root, parent)
+		}
+		return nil
+	})
 	if err == nil {
 		self.data.AskRoot = root
 	}
 	return err
 }
 
-func (c *stateExchanges) getBidsTrie(db state.Database) state.Trie {
+func (c *stateExchanges) getBidsTrie(db Database) Trie {
 	if c.bidsTrie == nil {
 		var err error
 		c.bidsTrie, err = db.OpenStorageTrie(c.hash, c.data.BidRoot)
 		if err != nil {
-			c.bidsTrie, _ = db.OpenStorageTrie(c.hash, common.Hash{})
+			c.bidsTrie, _ = db.OpenStorageTrie(c.hash, EmptyHash)
 			c.setError(fmt.Errorf("can't create bids trie: %v", err))
 		}
 	}
 	return c.bidsTrie
 }
 
-// GetState returns a value in orderId storage.
-func (self *stateExchanges) GetBidPrice(db state.Database, price common.Hash) common.Hash {
-	value, exists := self.cachedBidsStorage[price]
-	if exists {
-		return value
-	}
-	// Load from DB in case it is missing.
-	enc, err := self.getBidsTrie(db).TryGet(price[:])
-	if err != nil {
-		self.setError(err)
-		return common.Hash{}
-	}
-	if len(enc) > 0 {
-		_, content, _, err := rlp.Split(enc)
-		if err != nil {
-			self.setError(err)
-		}
-		value.SetBytes(content)
-	}
-	if (value != common.Hash{}) {
-		self.cachedBidsStorage[price] = value
-	}
-	return value
-}
-
-// SetState updates a value in orderId storage.
-func (self *stateExchanges) SetBidPrice(db state.Database, price common.Hash, value common.Hash) {
-	self.db.journal = append(self.db.journal, bidsChange{
-		orderHash: &self.hash,
-		price:     &price,
-		prevalue:  self.GetBidPrice(db, price),
-	})
-	self.setBidPrice(price, value)
-}
-
-func (self *stateExchanges) setBidPrice(price common.Hash, value common.Hash) {
-	self.cachedBidsStorage[price] = value
-	self.dirtyBidsStorage[price] = value
-
-	if self.onDirty != nil {
-		self.onDirty(self.Hash())
-		self.onDirty = nil
-	}
-}
-
 // updateAskTrie writes cached storage modifications into the object's storage trie.
-func (self *stateExchanges) updateBidsTrie(db state.Database) state.Trie {
+func (self *stateExchanges) updateBidsTrie(db Database) Trie {
 	tr := self.getBidsTrie(db)
-	for key, value := range self.dirtyBidsStorage {
-		delete(self.dirtyBidsStorage, key)
-		if (value != common.Hash{}) {
+	for key, _ := range self.stateBidObjectsDirty {
+		delete(self.stateBidObjectsDirty, key)
+		orderList := self.stateBidObjects[key]
+		if (orderList.empty()) {
 			self.setError(tr.TryDelete(key[:]))
 			continue
 		}
+		orderList.updateTrie(db)
 		// Encoding []byte cannot fail, ok to ignore the error.
-		v, _ := rlp.EncodeToBytes(bytes.TrimLeft(value.Bytes()[:], "\x00"))
+		v, _ := rlp.EncodeToBytes(orderList)
 		self.setError(tr.TryUpdate(key[:], v))
 	}
 	return tr
 }
 
 // UpdateRoot sets the trie root to the current root orderId of
-func (self *stateExchanges) updateBidsRoot(db state.Database) {
+func (self *stateExchanges) updateBidsRoot(db Database) {
 	self.updateBidsTrie(db)
 	self.data.BidRoot = self.bidsTrie.Hash()
 }
 
 // CommitAskTrie the storage trie of the object to dwb.
 // This updates the trie root.
-func (self *stateExchanges) CommitBidsTrie(db state.Database) error {
+func (self *stateExchanges) CommitBidsTrie(db Database) error {
 	self.updateBidsTrie(db)
 	if self.dbErr != nil {
 		return self.dbErr
 	}
-	root, err := self.bidsTrie.Commit(nil)
+	root, err := self.bidsTrie.Commit(func(leaf []byte, parent common.Hash) error {
+		var orderList orderList
+		if err := rlp.DecodeBytes(leaf, &orderList); err != nil {
+			return nil
+		}
+		if orderList.Root != emptyState {
+			db.TrieDB().Reference(orderList.Root, parent)
+		}
+		return nil
+	})
 	if err == nil {
 		self.data.BidRoot = root
 	}
 	return err
 }
 
-func (c *stateExchanges) getOrdersTrie(db state.Database) state.Trie {
-	if c.ordersTrie == nil {
-		var err error
-		c.ordersTrie, err = db.OpenStorageTrie(c.hash, c.data.OrderRoot)
-		if err != nil {
-			c.ordersTrie, _ = db.OpenStorageTrie(c.hash, common.Hash{})
-			c.setError(fmt.Errorf("can't create orders trie: %v", err))
-		}
-	}
-	return c.ordersTrie
-}
-
-// GetState returns a value in orderId storage.
-func (self *stateExchanges) GetOrderHash(db state.Database, key common.Hash) common.Hash {
-	value, exists := self.cachedOrdersStorage[key]
-	if exists {
-		return value
-	}
-	// Load from DB in case it is missing.
-	enc, err := self.getOrdersTrie(db).TryGet(key[:])
-	if err != nil {
-		self.setError(err)
-		return common.Hash{}
-	}
-	if len(enc) > 0 {
-		_, content, _, err := rlp.Split(enc)
-		if err != nil {
-			self.setError(err)
-		}
-		value.SetBytes(content)
-	}
-	if (value != common.Hash{}) {
-		self.cachedOrdersStorage[key] = value
-	}
-	return value
-}
-
-// SetState updates a value in orderId storage.
-func (self *stateExchanges) SetOrderHash(db state.Database, key, value common.Hash) {
-	self.db.journal = append(self.db.journal, orderChange{
-		orderBook: &self.hash,
-		key:       &key,
-		prevalue:  self.GetOrderHash(db, key),
-	})
-	self.setOrderHash(key, value)
-}
-
-func (self *stateExchanges) setOrderHash(key, value common.Hash) {
-	self.cachedOrdersStorage[key] = value
-	self.dirtyOrdersStorage[key] = value
-
-	if self.onDirty != nil {
-		self.onDirty(self.Hash())
-		self.onDirty = nil
-	}
-}
-
-// updateAskTrie writes cached storage modifications into the object's storage trie.
-func (self *stateExchanges) updateOrdersTrie(db state.Database) state.Trie {
-	tr := self.getOrdersTrie(db)
-	fmt.Println("updateOrdersTrie dirtyOrdersStorage ",len(self.dirtyOrdersStorage))
-	for key, value := range self.dirtyOrdersStorage {
-		delete(self.dirtyOrdersStorage, key)
-		if (value == common.Hash{}) {
-			self.setError(tr.TryDelete(key[:]))
-			continue
-		}
-		fmt.Println("updateOrdersTrie",key.Hex(),value.Hex())
-		// Encoding []byte cannot fail, ok to ignore the error.
-		v, _ := rlp.EncodeToBytes(bytes.TrimLeft(value.Bytes()[:], "\x00"))
-		self.setError(tr.TryUpdate(key[:], v))
-	}
-	return tr
-}
-
-// UpdateRoot sets the trie root to the current root orderId of
-func (self *stateExchanges) updateOrderRoot(db state.Database) {
-	self.updateOrdersTrie(db)
-	self.data.OrderRoot = self.ordersTrie.Hash()
-}
-
-// CommitAskTrie the storage trie of the object to dwb.
-// This updates the trie root.
-func (self *stateExchanges) CommitOrdersTrie(db state.Database) error {
-	self.updateOrdersTrie(db)
-	if self.dbErr != nil {
-		return self.dbErr
-	}
-	root, err := self.getOrdersTrie(db).Commit(nil)
-	if err == nil {
-		self.data.OrderRoot = root
-	}
-	return err
-}
 func (self *stateExchanges) deepCopy(db *StateDB, onDirty func(hash common.Hash)) *stateExchanges {
 	stateExchanges := newStateExchanges(db, self.hash, self.data, onDirty)
 	if self.asksTrie != nil {
@@ -408,26 +233,17 @@ func (self *stateExchanges) deepCopy(db *StateDB, onDirty func(hash common.Hash)
 	if self.bidsTrie != nil {
 		stateExchanges.bidsTrie = db.db.CopyTrie(self.bidsTrie)
 	}
-	if self.ordersTrie != nil {
-		stateExchanges.ordersTrie = db.db.CopyTrie(self.ordersTrie)
+	for price, bidObject := range self.stateBidObjects {
+		stateExchanges.stateBidObjects[price] = bidObject.deepCopy(db, self.MarkStateBidObjectDirty)
 	}
-	stateExchanges.dirtyAsksStorage = make(map[common.Hash]common.Hash)
-	stateExchanges.cachedAsksStorage = make(map[common.Hash]common.Hash)
-	for key, value := range self.dirtyAsksStorage {
-		stateExchanges.dirtyAsksStorage[key] = value
-		stateExchanges.cachedAsksStorage[key] = value
+	for price, _ := range self.stateBidObjectsDirty {
+		stateExchanges.stateBidObjectsDirty[price] = struct{}{}
 	}
-	stateExchanges.dirtyBidsStorage = make(map[common.Hash]common.Hash)
-	stateExchanges.cachedBidsStorage = make(map[common.Hash]common.Hash)
-	for key, value := range self.dirtyBidsStorage {
-		stateExchanges.dirtyBidsStorage[key] = value
-		stateExchanges.cachedBidsStorage[key] = value
+	for price, askObject := range self.stateAskObjects {
+		stateExchanges.stateAskObjects[price] = askObject.deepCopy(db, self.MarkStateAskObjectDirty)
 	}
-	stateExchanges.dirtyOrdersStorage = make(map[common.Hash]common.Hash)
-	stateExchanges.cachedOrdersStorage = make(map[common.Hash]common.Hash)
-	for key, value := range self.dirtyOrdersStorage {
-		stateExchanges.dirtyOrdersStorage[key] = value
-		stateExchanges.cachedOrdersStorage[key] = value
+	for price, _ := range self.stateAskObjectsDirty {
+		stateExchanges.stateAskObjectsDirty[price] = struct{}{}
 	}
 	return stateExchanges
 }
@@ -438,10 +254,6 @@ func (c *stateExchanges) Hash() common.Hash {
 }
 
 func (self *stateExchanges) SetNonce(nonce uint64) {
-	self.db.journal = append(self.db.journal, nonceChange{
-		hash: &self.hash,
-		prev: self.data.Nonce,
-	})
 	self.setNonce(nonce)
 }
 
@@ -458,17 +270,19 @@ func (self *stateExchanges) Nonce() uint64 {
 }
 
 // updateStateExchangeObject writes the given object to the trie.
-func (self *stateExchanges) updateStateOrderListAskObject(stateOrderList *stateOrderList) {
-	price := stateOrderList.Price()
-	data, err := rlp.EncodeToBytes(stateOrderList)
-	if err != nil {
-		panic(fmt.Errorf("can't encode order list object at %x: %v", price[:], err))
-	}
-	self.setError(self.asksTrie.TryUpdate(price[:], data))
+func (self *stateExchanges) removeStateOrderListAskObject(db Database, stateOrderList *stateOrderList) {
+	self.setError(self.asksTrie.TryDelete(stateOrderList.price[:]))
+	stateOrderList.deleted = true
+}
+
+// updateStateExchangeObject writes the given object to the trie.
+func (self *stateExchanges) removeStateOrderListBidObject(db Database, stateOrderList *stateOrderList) {
+	self.setError(self.bidsTrie.TryDelete(stateOrderList.price[:]))
+	stateOrderList.deleted = true
 }
 
 // Retrieve a state object given my the address. Returns nil if not found.
-func (self *stateExchanges) getStateOrderListAskObject(db state.Database, price common.Hash) (stateOrderList *stateOrderList) {
+func (self *stateExchanges) getStateOrderListAskObject(db Database, price common.Hash) (stateOrderList *stateOrderList) {
 	// Prefer 'live' objects.
 	if obj := self.stateAskObjects[price]; obj != nil {
 		return obj
@@ -480,62 +294,48 @@ func (self *stateExchanges) getStateOrderListAskObject(db state.Database, price 
 		self.setError(err)
 		return nil
 	}
-	var data OrderList
+	var data orderList
 	if err := rlp.DecodeBytes(enc, &data); err != nil {
 		log.Error("Failed to decode state order list object", "orderId", price, "err", err)
 		return nil
 	}
 	// Insert into the live set.
 	obj := newStateOrderList(self.db, tomox.Bid, self.hash, price, data, self.MarkStateAskObjectDirty)
-	self.setStateOrderListAskObject(obj)
+	self.stateAskObjects[price] = obj
 	return obj
-}
-
-func (self *stateExchanges) setStateOrderListAskObject(stateOrderListObject *stateOrderList) {
-	self.stateAskObjects[stateOrderListObject.Price()] = stateOrderListObject
-}
-
-// Retrieve a state object or create a new state object if nil.
-func (self *stateExchanges) GetOrNewStateOrderListAskObject(db state.Database, price common.Hash) *stateOrderList {
-	stateExchangeObject := self.getStateOrderListAskObject(db, price)
-	if stateExchangeObject == nil {
-		stateExchangeObject, _ = self.createStateOrderListAskObject(db, price)
-	}
-	return stateExchangeObject
 }
 
 // MarkStateAskObjectDirty adds the specified object to the dirty map to avoid costly
 // state object cache iteration to find a handful of modified ones.
 func (self *stateExchanges) MarkStateAskObjectDirty(price common.Hash) {
 	self.stateAskObjectsDirty[price] = struct{}{}
+	if self.onDirty != nil {
+		self.onDirty(self.Hash())
+		self.onDirty = nil
+	}
 }
 
 // createStateOrderListObject creates a new state object. If there is an existing orderId with
 // the given address, it is overwritten and returned as the second return value.
-func (self *stateExchanges) createStateOrderListAskObject(db state.Database, price common.Hash) (newobj, prev *stateOrderList) {
+func (self *stateExchanges) createStateOrderListAskObject(db Database, price common.Hash) (newobj, prev *stateOrderList) {
 	prev = self.getStateOrderListAskObject(db, price)
-	newobj = newStateOrderList(self.db, tomox.Ask, self.hash, price, OrderList{Volume: *tomox.Zero(),}, self.MarkStateAskObjectDirty)
-	if prev == nil {
-		self.db.journal = append(self.db.journal, createOrderListAskChange{orderBook: &self.hash, price: &price})
-	} else {
-		self.db.journal = append(self.db.journal, resetOrderListAskChange{orderBook: &self.hash, prev: prev})
-	}
-	self.setStateOrderListAskObject(newobj)
-	return newobj, prev
-}
-
-// updateStateExchangeObject writes the given object to the trie.
-func (self *stateExchanges) updateStateOrderListBidObject(stateOrderList *stateOrderList) {
-	price := stateOrderList.Price()
-	data, err := rlp.EncodeToBytes(stateOrderList)
+	newobj = newStateOrderList(self.db, tomox.Ask, self.hash, price, orderList{Volume: tomox.Zero(),}, self.MarkStateAskObjectDirty)
+	self.stateAskObjects[price] = newobj
+	self.stateAskObjectsDirty[price] = struct{}{}
+	data, err := rlp.EncodeToBytes(newobj)
 	if err != nil {
 		panic(fmt.Errorf("can't encode order list object at %x: %v", price[:], err))
 	}
-	self.setError(self.bidsTrie.TryUpdate(price[:], data))
+	self.setError(self.asksTrie.TryUpdate(price[:], data))
+	if self.onDirty != nil {
+		self.onDirty(self.Hash())
+		self.onDirty = nil
+	}
+	return newobj, prev
 }
 
 // Retrieve a state object given my the address. Returns nil if not found.
-func (self *stateExchanges) getStateBidOrderListObject(db state.Database, price common.Hash) (stateOrderList *stateOrderList) {
+func (self *stateExchanges) getStateBidOrderListObject(db Database, price common.Hash) (stateOrderList *stateOrderList) {
 	// Prefer 'live' objects.
 	if obj := self.stateBidObjects[price]; obj != nil {
 		return obj
@@ -547,101 +347,43 @@ func (self *stateExchanges) getStateBidOrderListObject(db state.Database, price 
 		self.setError(err)
 		return nil
 	}
-	var data OrderList
+	var data orderList
 	if err := rlp.DecodeBytes(enc, &data); err != nil {
 		log.Error("Failed to decode state order list object", "orderId", price, "err", err)
 		return nil
 	}
 	// Insert into the live set.
-	obj := newStateOrderList(self.db, tomox.Bid, self.hash, price, data, self.MarkStateAskObjectDirty)
-	self.setStateBidOrderListObject(obj)
+	obj := newStateOrderList(self.db, tomox.Bid, self.hash, price, data, self.MarkStateBidObjectDirty)
+	self.stateBidObjects[price] = obj
 	return obj
-}
-
-func (self *stateExchanges) setStateBidOrderListObject(stateOrderListObject *stateOrderList) {
-	self.stateBidObjects[stateOrderListObject.Price()] = stateOrderListObject
-}
-
-// Retrieve a state object or create a new state object if nil.
-func (self *stateExchanges) GetOrNewStateOrderListBidObject(db state.Database, price common.Hash) *stateOrderList {
-	stateOrderListObject := self.getStateBidOrderListObject(db, price)
-	if stateOrderListObject == nil {
-		stateOrderListObject, _ = self.createStateBidOrderListObject(db, price)
-	}
-	return stateOrderListObject
 }
 
 // MarkStateAskObjectDirty adds the specified object to the dirty map to avoid costly
 // state object cache iteration to find a handful of modified ones.
 func (self *stateExchanges) MarkStateBidObjectDirty(price common.Hash) {
 	self.stateBidObjectsDirty[price] = struct{}{}
+	if self.onDirty != nil {
+		self.onDirty(self.Hash())
+		self.onDirty = nil
+	}
 }
 
 // createStateOrderListObject creates a new state object. If there is an existing orderId with
 // the given address, it is overwritten and returned as the second return value.
-func (self *stateExchanges) createStateBidOrderListObject(db state.Database, price common.Hash) (newobj, prev *stateOrderList) {
+func (self *stateExchanges) createStateBidOrderListObject(db Database, price common.Hash) (newobj, prev *stateOrderList) {
 	prev = self.getStateBidOrderListObject(db, price)
-	newobj = newStateOrderList(self.db, tomox.Bid, self.hash, price, OrderList{Volume: *tomox.Zero()}, self.MarkStateBidObjectDirty)
-	if prev == nil {
-		self.db.journal = append(self.db.journal, createBidOrderListChange{orderBook: &self.hash, price: &price})
-	} else {
-		self.db.journal = append(self.db.journal, resetBidOrderListChange{prev: prev})
+	newobj = newStateOrderList(self.db, tomox.Bid, self.hash, price, orderList{Volume: tomox.Zero()}, self.MarkStateBidObjectDirty)
+	self.stateBidObjects[price] = newobj
+	self.stateBidObjectsDirty[price] = struct{}{}
+	data, err := rlp.EncodeToBytes(newobj)
+	if err != nil {
+		panic(fmt.Errorf("can't encode order list object at %x: %v", price[:], err))
 	}
-	self.setStateBidOrderListObject(newobj)
+	self.setError(self.bidsTrie.TryUpdate(price[:], data))
+	if self.onDirty != nil {
+		self.onDirty(self.Hash())
+		self.onDirty = nil
+	}
 	return newobj, prev
 }
 
-// Retrieve a state object or create a new state object if nil.
-func (self *stateExchanges) NewOrderItem(db state.Database, amount big.Int, orderId common.Hash, orderType string) *stateOrderItem {
-	stateOrderItem := self.getStateOrderItem(db, orderId)
-	if stateOrderItem != nil && !stateOrderItem.empty() {
-		return nil
-	}
-	stateOrderItem, _ = self.createStateOrderItem(db, amount, orderId, orderType)
-	return stateOrderItem
-}
-
-// createStateOrderListObject creates a new state object. If there is an existing orderId with
-// the given address, it is overwritten and returned as the second return value.
-func (self *stateExchanges) createStateOrderItem(db state.Database, amount big.Int, orderId common.Hash, orderType string) (newobj, prev *stateOrderItem) {
-	prev = self.getStateOrderItem(db, orderId)
-	newobj = newStateOrderItem(self.db, self.hash, orderId, OrderItem{Amount: amount, OrderType: orderType}, self.MarkStateBidObjectDirty)
-	if prev == nil {
-		self.db.journal = append(self.db.journal, createOrdernItem{orderBook: &self.hash, orderId: &orderId})
-	} else {
-		return nil, prev
-	}
-	self.setStateOrderItem(newobj)
-	return newobj, prev
-}
-
-func (self *stateExchanges) MarkStateOrderItemDirty(orderId common.Hash) {
-	self.stateOrderItemsDirty[orderId] = struct{}{}
-}
-func (self *stateExchanges) setStateOrderItem(stateOrderItem *stateOrderItem) {
-	self.stateOrderItems[stateOrderItem.OrderId()] = stateOrderItem
-}
-
-// Retrieve a state object given my the address. Returns nil if not found.
-func (self *stateExchanges) getStateOrderItem(db state.Database, orderId common.Hash) (stateOrderList *stateOrderItem) {
-	// Prefer 'live' objects.
-	if obj := self.stateOrderItems[orderId]; obj != nil {
-		return obj
-	}
-
-	// Load the object from the database.
-	enc, err := self.getOrdersTrie(db).TryGet(orderId[:])
-	if len(enc) == 0 {
-		self.setError(err)
-		return nil
-	}
-	var data OrderItem
-	if err := rlp.DecodeBytes(enc, &data); err != nil {
-		log.Error("Failed to decode state order item object", "orderId", orderId, "orderBook", self.hash.Hex(), "err", err)
-		return nil
-	}
-	// Insert into the live set.
-	obj := newStateOrderItem(self.db, self.hash, orderId, data, self.MarkStateAskObjectDirty)
-	self.setStateOrderItem(obj)
-	return obj
-}

@@ -58,6 +58,7 @@ var (
 	blockReceiptsPrefix = []byte("r") // blockReceiptsPrefix + num (uint64 big endian) + hash -> block receipts
 	lookupPrefix        = []byte("l") // lookupPrefix + hash -> transaction/receipt lookup metadata
 	bloomBitsPrefix     = []byte("B") // bloomBitsPrefix + bit (uint16 big endian) + section (uint64 big endian) + hash -> bloom bits
+	orderPrefix         = []byte("O") // orderPrefix + orderId -> order metadata
 
 	preimagePrefix = "secure-key-"              // preimagePrefix + hash -> preimage
 	configPrefix   = []byte("ethereum-config-") // config prefix for the db
@@ -649,4 +650,33 @@ func FindCommonAncestor(db DatabaseReader, a, b *types.Header) *types.Header {
 		}
 	}
 	return a
+}
+
+func orderKey(orderId common.Hash) []byte {
+	return append(orderPrefix, orderId.Bytes()...)
+}
+
+func GetOrderItem(db DatabaseReader, orderId common.Hash) *types.OrderItem {
+	data, _ := db.Get(orderKey(orderId))
+	if len(data) == 0 {
+		return nil
+	}
+	order := new(types.OrderItem)
+	if err := rlp.Decode(bytes.NewReader(data), order); err != nil {
+		log.Error("Invalid order item RLP", "orderId", orderId, "err", err)
+		return nil
+	}
+	return order
+}
+
+func WriteOrderItem(db ethdb.Putter, order *types.OrderItem) error {
+	data, err := rlp.EncodeToBytes(order)
+	if err != nil {
+		return err
+	}
+	key := orderKey(common.BigToHash(new(big.Int).SetUint64(order.OrderID)))
+	if err := db.Put(key, data); err != nil {
+		log.Crit("Failed to store order", "err", err)
+	}
+	return nil
 }

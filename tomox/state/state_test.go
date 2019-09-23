@@ -18,7 +18,6 @@ package state
 
 import (
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/ethdb"
 	checker "gopkg.in/check.v1"
 )
@@ -78,7 +77,7 @@ func (s *StateSuite) TestDump(c *checker.C) {
 
 func (s *StateSuite) SetUpTest(c *checker.C) {
 	s.db, _ = ethdb.NewMemDatabase()
-	s.state, _ = New(common.Hash{}, state.NewDatabase(s.db))
+	s.state, _ = New(common.Hash{}, NewDatabase(s.db))
 }
 
 func (s *StateSuite) TestNull(c *checker.C) {
@@ -94,26 +93,4 @@ func (s *StateSuite) TestNull(c *checker.C) {
 	}
 }
 
-func (s *StateSuite) TestSnapshot(c *checker.C) {
-	stateobjaddr := toAddr([]byte("aa"))
-
-	// set initial state object value
-	s.state.SetNonce(stateobjaddr,1)
-	// get snapshot of current state
-	snapshot := s.state.Snapshot()
-
-	// set new state object value
-	s.state.SetNonce(stateobjaddr, 2)
-	// restore snapshot
-	s.state.RevertToSnapshot(snapshot)
-
-	// get state storage value
-	res := s.state.GetNonce(stateobjaddr)
-
-	c.Assert(uint64(1), checker.DeepEquals, res)
-}
-
-func (s *StateSuite) TestSnapshotEmpty(c *checker.C) {
-	s.state.RevertToSnapshot(s.state.Snapshot())
-}
 

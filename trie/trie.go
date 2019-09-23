@@ -283,22 +283,32 @@ func (t *Trie) insert(n Node, prefix, key []byte, value Node) (bool, Node, error
 	}
 }
 
-func (t *Trie) TryGetBestLeft() ([]byte, error) {
-	value, newroot, didResolve, err := t.tryGetBestLeft(t.root)
+func (t *Trie) TryGetBestLeftKey() ([]byte, error) {
+	value, newroot, didResolve, err := t.tryGetBestLeftKey(t.root, []byte{})
 	if err == nil && didResolve {
 		t.root = newroot
 	}
 	return value, err
 }
 
-func (t *Trie) tryGetBestLeft(origNode Node) (value []byte, newnode Node, didResolve bool, err error) {
+
+func (t *Trie) TryGetBestLeftKeyAndValue() ([]byte, error) {
+	value, newroot, didResolve, err := t.tryGetBestLeftKeyAndValue(t.root, []byte{})
+	if err == nil && didResolve {
+		t.root = newroot
+	}
+	return value, err
+}
+
+
+func (t *Trie) tryGetBestLeftKey(origNode Node, key []byte) (value []byte, newnode Node, didResolve bool, err error) {
 	switch n := (origNode).(type) {
 	case nil:
 		return nil, nil, false, nil
 	case ValueNode:
 		return n, n, false, nil
 	case *ShortNode:
-		value, newnode, didResolve, err = t.tryGetBestLeft(n.Val)
+		value, newnode, didResolve, err = t.tryGetBestLeftKey(n.Val, key)
 		if err == nil && didResolve {
 			n = n.copy()
 			n.Val = newnode
@@ -306,11 +316,12 @@ func (t *Trie) tryGetBestLeft(origNode Node) (value []byte, newnode Node, didRes
 		}
 		return value, n, didResolve, err
 	case *FullNode:
-		for i := 0; i < len(n.Children); i++ {
+		for i := byte(0); i < byte(len(n.Children)); i++ {
 			if n.Children[i] == nil {
 				continue
 			}
-			value, newnode, didResolve, err = t.tryGetBestLeft(n.Children[i])
+
+			value, newnode, didResolve, err = t.tryGetBestLeftKey(n.Children[i], append(key, i))
 			if err == nil && didResolve {
 				n = n.copy()
 				n.flags.gen = t.cachegen
@@ -323,7 +334,7 @@ func (t *Trie) tryGetBestLeft(origNode Node) (value []byte, newnode Node, didRes
 		if err != nil {
 			return nil, n, true, err
 		}
-		value, newnode, _, err := t.tryGetBestLeft(child)
+		value, newnode, _, err := t.tryGetBestLeftKey(child, key)
 		return value, newnode, true, err
 	default:
 		return nil, nil, false, fmt.Errorf("%T: invalid node: %v", origNode, origNode)
@@ -331,7 +342,49 @@ func (t *Trie) tryGetBestLeft(origNode Node) (value []byte, newnode Node, didRes
 	return nil, nil, false, fmt.Errorf("%T: invalid node: %v", origNode, origNode)
 }
 
-func (t *Trie) TryGetBestRight() ([]byte, error) {
+
+func (t *Trie) tryGetBestLeftKeyAndValue(origNode Node, key []byte) (value []byte, newnode Node, didResolve bool, err error) {
+	switch n := (origNode).(type) {
+	case nil:
+		return nil, nil, false, nil
+	case ValueNode:
+		return n, n, false, nil
+	case *ShortNode:
+		value, newnode, didResolve, err = t.tryGetBestLeftKey(n.Val, key)
+		if err == nil && didResolve {
+			n = n.copy()
+			n.Val = newnode
+			n.flags.gen = t.cachegen
+		}
+		return value, n, didResolve, err
+	case *FullNode:
+		for i := byte(0); i < byte(len(n.Children)); i++ {
+			if n.Children[i] == nil {
+				continue
+			}
+
+			value, newnode, didResolve, err = t.tryGetBestLeftKey(n.Children[i], append(key, i))
+			if err == nil && didResolve {
+				n = n.copy()
+				n.flags.gen = t.cachegen
+				n.Children[i] = newnode
+			}
+			return value, n, didResolve, err
+		}
+	case HashNode:
+		child, err := t.resolveHash(n, nil)
+		if err != nil {
+			return nil, n, true, err
+		}
+		value, newnode, _, err := t.tryGetBestLeftKey(child, key)
+		return value, newnode, true, err
+	default:
+		return nil, nil, false, fmt.Errorf("%T: invalid node: %v", origNode, origNode)
+	}
+	return nil, nil, false, fmt.Errorf("%T: invalid node: %v", origNode, origNode)
+}
+
+func (t *Trie) TryGetBestRightKey() ([]byte, error) {
 	value, newroot, didResolve, err := t.tryGetBestRight(t.root)
 	if err == nil && didResolve {
 		t.root = newroot
@@ -354,7 +407,7 @@ func (t *Trie) tryGetBestRight(origNode Node) (value []byte, newnode Node, didRe
 		}
 		return value, n, didResolve, err
 	case *FullNode:
-		for i := 16; i >= 0; i-- {
+		for i := len(n.Children) - 1; i >= 0; i-- {
 			if n.Children[i] == nil {
 				continue
 			}
@@ -557,7 +610,6 @@ func (t *Trie) resolve(n Node, prefix []byte) (Node, error) {
 }
 
 func (t *Trie) resolveHash(n HashNode, prefix []byte) (Node, error) {
-	fmt.Println("resolveHash", n.String())
 	cacheMissCounter.Inc(1)
 
 	hash := common.BytesToHash(n)

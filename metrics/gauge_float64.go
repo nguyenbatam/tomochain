@@ -67,7 +67,7 @@ func (GaugeFloat64Snapshot) Update(float64) {
 	panic("Update called on a GaugeFloat64Snapshot")
 }
 
-// Value returns the value at the time the snapshot was taken.
+// Quantity returns the value at the time the snapshot was taken.
 func (g GaugeFloat64Snapshot) Value() float64 { return float64(g) }
 
 // NilGauge is a no-op Gauge.
@@ -79,7 +79,7 @@ func (NilGaugeFloat64) Snapshot() GaugeFloat64 { return NilGaugeFloat64{} }
 // Update is a no-op.
 func (NilGaugeFloat64) Update(v float64) {}
 
-// Value is a no-op.
+// Quantity is a no-op.
 func (NilGaugeFloat64) Value() float64 { return 0.0 }
 
 // StandardGaugeFloat64 is the standard implementation of a GaugeFloat64 and uses
@@ -101,7 +101,7 @@ func (g *StandardGaugeFloat64) Update(v float64) {
 	g.value = v
 }
 
-// Value returns the gauge's current value.
+// Quantity returns the gauge's current value.
 func (g *StandardGaugeFloat64) Value() float64 {
 	g.mutex.Lock()
 	defer g.mutex.Unlock()
@@ -113,7 +113,7 @@ type FunctionalGaugeFloat64 struct {
 	value func() float64
 }
 
-// Value returns the gauge's current value.
+// Quantity returns the gauge's current value.
 func (g FunctionalGaugeFloat64) Value() float64 {
 	return g.value()
 }

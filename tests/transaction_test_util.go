@@ -127,7 +127,7 @@ func (tt *ttTransaction) verify(signer types.Signer, tx *types.Transaction) erro
 		return fmt.Errorf("To mismatch: got %x, want %x", *tx.To(), tt.To)
 	}
 	if tx.Value().Cmp(tt.Value) != 0 {
-		return fmt.Errorf("Value mismatch: got %x, want %x", tx.Value(), tt.Value)
+		return fmt.Errorf("Quantity mismatch: got %x, want %x", tx.Value(), tt.Value)
 	}
 	return nil
 }

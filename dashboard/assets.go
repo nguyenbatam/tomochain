@@ -21626,7 +21626,7 @@ var _bundleJs = []byte((((((((((`!function(modules) {
                             hasOverloadedBooleanValue: checkMask(propConfig, Injection.HAS_OVERLOADED_BOOLEAN_VALUE),
                             hasStringBooleanValue: checkMask(propConfig, Injection.HAS_STRING_BOOLEAN_VALUE)
                         };
-                        if (propertyInfo.hasBooleanValue + propertyInfo.hasNumericValue + propertyInfo.hasOverloadedBooleanValue <= 1 || invariant(!1, "DOMProperty: Value can be one of boolean, overloaded boolean, or numeric value, but not a combination: %s", propName), 
+                        if (propertyInfo.hasBooleanValue + propertyInfo.hasNumericValue + propertyInfo.hasOverloadedBooleanValue <= 1 || invariant(!1, "DOMProperty: Quantity can be one of boolean, overloaded boolean, or numeric value, but not a combination: %s", propName), 
                         DOMAttributeNames.hasOwnProperty(propName)) {
                             var attributeName = DOMAttributeNames[propName];
                             propertyInfo.attributeName = attributeName;

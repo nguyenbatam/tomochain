@@ -40,14 +40,14 @@ type devNull struct{}
 func (*devNull) Write(p []byte) (n int, err error) { return len(p), nil }
 func (*devNull) Close() error                      { return nil }
 
-// txJournal is a rotating log of transactions with the aim of storing locally
+// orderJournal is a rotating log of transactions with the aim of storing locally
 // created transactions to allow non-executed ones to survive node restarts.
 type txJournal struct {
 	path   string         // Filesystem path to store the transactions at
 	writer io.WriteCloser // Output stream to write new transactions into
 }
 
-// newTxJournal creates a new transaction journal to
+// newOrderJournal creates a new transaction journal to
 func newTxJournal(path string) *txJournal {
 	return &txJournal{
 		path: path,

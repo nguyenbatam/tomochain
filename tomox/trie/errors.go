@@ -14,27 +14,22 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
 
-package state
+package trie
 
 import (
-	"bytes"
+	"fmt"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/rlp"
-	"github.com/ethereum/go-ethereum/trie"
 )
 
-// NewStateSync create a new state trie download scheduler.
-func NewStateSync(root common.Hash, database trie.DatabaseReader) *trie.TrieSync {
-	var syncer *trie.TrieSync
-	callback := func(leaf []byte, parent common.Hash) error {
-		var obj ExchangeObject
-		if err := rlp.Decode(bytes.NewReader(leaf), &obj); err != nil {
-			return err
-		}
-		syncer.AddSubTrie(obj.AskRoot, 64, parent, nil)
-		return nil
-	}
-	syncer = trie.NewTrieSync(root, database, callback)
-	return syncer
+// MissingNodeError is returned by the trie functions (TryGet, TryUpdate, TryDelete)
+// in the case where a trie node is not present in the local database. It contains
+// information necessary for retrieving the missing node.
+type MissingNodeError struct {
+	NodeHash common.Hash // hash of the missing node
+	Path     []byte      // hex-encoded path to the missing node
+}
+
+func (err *MissingNodeError) Error() string {
+	return fmt.Sprintf("missing trie node %x (path %x)", err.NodeHash, err.Path)
 }

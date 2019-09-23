@@ -347,7 +347,7 @@ func setError(resp *otto.Object, code int, msg string) {
 	resp.Set("error", map[string]interface{}{"code": code, "message": msg})
 }
 
-// throwJSException panics on an otto.Value. The Otto VM will recover from the
+// throwJSException panics on an otto.Quantity. The Otto VM will recover from the
 // Go panic and throw msg as a JavaScript error.
 func throwJSException(msg interface{}) otto.Value {
 	val, err := otto.ToValue(msg)
