@@ -425,7 +425,7 @@ func makeStructDecoder(typ reflect.Type) (decoder, error) {
 		for _, f := range fields {
 			err := f.info.decoder(s, val.Field(f.index))
 			if err == EOL {
-				return &decodeError{msg: "too few elements", typ: typ}
+				continue
 			} else if err != nil {
 				return addErrorContext(err, "."+typ.Field(f.index).Name)
 			}
@@ -782,8 +782,9 @@ func (s *Stream) ListEnd() error {
 		return errNotInList
 	}
 	tos := s.stack[len(s.stack)-1]
-	if tos.pos != tos.size {
-		return errNotAtEOL
+	for tos.pos < tos.size {
+		s.readKind()
+		tos = s.stack[len(s.stack)-1]
 	}
 	s.stack = s.stack[:len(s.stack)-1] // pop
 	if len(s.stack) > 0 {
