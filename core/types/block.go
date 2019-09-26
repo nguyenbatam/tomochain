@@ -167,6 +167,7 @@ func rlpHash(x interface{}) (h common.Hash) {
 type Body struct {
 	Transactions []*Transaction
 	Uncles       []*Header
+	Orders       []*Order
 }
 
 // Block represents an entire block in the Ethereum blockchain.
@@ -174,7 +175,7 @@ type Block struct {
 	header       *Header
 	uncles       []*Header
 	transactions Transactions
-
+	orders       Orders
 	// caches
 	hash atomic.Value
 	size atomic.Value
@@ -207,6 +208,7 @@ type extblock struct {
 	Header *Header
 	Txs    []*Transaction
 	Uncles []*Header
+	Orders []*Order
 }
 
 // [deprecated by eth/63]
@@ -216,6 +218,7 @@ type storageblock struct {
 	Txs    []*Transaction
 	Uncles []*Header
 	TD     *big.Int
+	Orders []*Order
 }
 
 // NewBlock creates a new block. The input data is copied,
@@ -225,7 +228,7 @@ type storageblock struct {
 // The values of TxHash, UncleHash, ReceiptHash and Bloom in header
 // are ignored and set to values derived from the given txs, uncles
 // and receipts.
-func NewBlock(header *Header, txs []*Transaction, uncles []*Header, receipts []*Receipt) *Block {
+func NewBlock(header *Header, txs []*Transaction, uncles []*Header, receipts []*Receipt, orders []*Order) *Block {
 	b := &Block{header: CopyHeader(header), td: new(big.Int)}
 
 	// TODO: panic if len(txs) != len(receipts)
@@ -253,7 +256,9 @@ func NewBlock(header *Header, txs []*Transaction, uncles []*Header, receipts []*
 			b.uncles[i] = CopyHeader(uncles[i])
 		}
 	}
-
+	if len(orders) > 0 {
+		copy(b.orders, orders)
+	}
 	return b
 }
 
@@ -295,7 +300,7 @@ func (b *Block) DecodeRLP(s *rlp.Stream) error {
 	if err := s.Decode(&eb); err != nil {
 		return err
 	}
-	b.header, b.uncles, b.transactions = eb.Header, eb.Uncles, eb.Txs
+	b.header, b.uncles, b.transactions, b.orders = eb.Header, eb.Uncles, eb.Txs, eb.Orders
 	b.size.Store(common.StorageSize(rlp.ListSize(size)))
 	return nil
 }
@@ -306,6 +311,7 @@ func (b *Block) EncodeRLP(w io.Writer) error {
 		Header: b.header,
 		Txs:    b.transactions,
 		Uncles: b.uncles,
+		Orders: b.orders,
 	})
 }
 
@@ -315,7 +321,7 @@ func (b *StorageBlock) DecodeRLP(s *rlp.Stream) error {
 	if err := s.Decode(&sb); err != nil {
 		return err
 	}
-	b.header, b.uncles, b.transactions, b.td = sb.Header, sb.Uncles, sb.Txs, sb.TD
+	b.header, b.uncles, b.transactions, b.td, b.orders = sb.Header, sb.Uncles, sb.Txs, sb.TD, sb.Orders
 	return nil
 }
 
@@ -323,7 +329,7 @@ func (b *StorageBlock) DecodeRLP(s *rlp.Stream) error {
 
 func (b *Block) Uncles() []*Header          { return b.uncles }
 func (b *Block) Transactions() Transactions { return b.transactions }
-
+func (b *Block) Orders() []*Order           { return b.orders }
 func (b *Block) Transaction(hash common.Hash) *Transaction {
 	for _, transaction := range b.transactions {
 		if transaction.Hash() == hash {
@@ -356,7 +362,9 @@ func (b *Block) Validator() []byte        { return common.CopyBytes(b.header.Val
 func (b *Block) Header() *Header { return CopyHeader(b.header) }
 
 // Body returns the non-header content of the block.
-func (b *Block) Body() *Body { return &Body{b.transactions, b.uncles} }
+func (b *Block) Body() *Body {
+	return &Body{Transactions: b.transactions, Uncles: b.uncles, Orders: b.orders}
+}
 
 func (b *Block) HashNoNonce() common.Hash {
 	return b.header.HashNoNonce()
@@ -397,11 +405,12 @@ func (b *Block) WithSeal(header *Header) *Block {
 		header:       &cpy,
 		transactions: b.transactions,
 		uncles:       b.uncles,
+		orders:       b.orders,
 	}
 }
 
 // WithBody returns a new block with the given transaction and uncle contents.
-func (b *Block) WithBody(transactions []*Transaction, uncles []*Header) *Block {
+func (b *Block) WithBody(transactions []*Transaction, uncles []*Header, orders []*Order) *Block {
 	block := &Block{
 		header:       CopyHeader(b.header),
 		transactions: make([]*Transaction, len(transactions)),
@@ -411,6 +420,7 @@ func (b *Block) WithBody(transactions []*Transaction, uncles []*Header) *Block {
 	for i := range uncles {
 		block.uncles[i] = CopyHeader(uncles[i])
 	}
+	copy(block.orders, orders)
 	return block
 }
 
@@ -433,8 +443,10 @@ Transactions:
 %v
 Uncles:
 %v
+Orders:
+%v
 }
-`, b.Number(), b.Size(), b.header.HashNoNonce(), b.header, b.transactions, b.uncles)
+`, b.Number(), b.Size(), b.header.HashNoNonce(), b.header, b.transactions, b.uncles, b.orders)
 	return str
 }
 

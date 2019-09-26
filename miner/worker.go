@@ -82,10 +82,10 @@ type Work struct {
 
 	Block *types.Block // the new block
 
-	header   *types.Header
-	txs      []*types.Transaction
-	receipts []*types.Receipt
-
+	header    *types.Header
+	txs       []*types.Transaction
+	receipts  []*types.Receipt
+	orders    []*types.Order
 	createdAt time.Time
 }
 
@@ -193,6 +193,7 @@ func (self *worker) pending() (*types.Block, *state.StateDB) {
 			self.current.txs,
 			nil,
 			self.current.receipts,
+			self.current.orders,
 		), self.current.state.Copy()
 	}
 	return self.current.Block, self.current.state.Copy()
@@ -208,6 +209,7 @@ func (self *worker) pendingBlock() *types.Block {
 			self.current.txs,
 			nil,
 			self.current.receipts,
+			self.current.orders,
 		)
 	}
 	return self.current.Block
@@ -629,7 +631,7 @@ func (self *worker) commitNewWork() {
 		}
 	}
 	// Create the new block to seal with the consensus engine
-	if work.Block, err = self.engine.Finalize(self.chain, header, work.state, work.txs, uncles, work.receipts); err != nil {
+	if work.Block, err = self.engine.Finalize(self.chain, header, work.state, work.txs, uncles, work.receipts, work.orders); err != nil {
 		log.Error("Failed to finalize block for sealing", "err", err)
 		return
 	}

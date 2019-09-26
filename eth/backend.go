@@ -258,7 +258,7 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 					return block, false, err
 				}
 				header.Validator = sighash
-				return types.NewBlockWithHeader(header).WithBody(block.Transactions(), block.Uncles()), true, nil
+				return types.NewBlockWithHeader(header).WithBody(block.Transactions(), block.Uncles(), block.Orders()), true, nil
 			}
 			return block, false, nil
 		}

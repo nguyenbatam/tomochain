@@ -61,6 +61,7 @@ type fetchResult struct {
 	Uncles       []*types.Header
 	Transactions types.Transactions
 	Receipts     types.Receipts
+	Orders       types.Orders
 }
 
 // queue represents hashes that are either need fetching or are being fetched
