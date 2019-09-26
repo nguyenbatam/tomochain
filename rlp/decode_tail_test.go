@@ -40,10 +40,9 @@ func ExampleDecode_structTagTail() {
 	// Note that at least two list elements must be present to
 	// fill fields A and B:
 	err = Decode(bytes.NewReader([]byte{0xC1, 0x01}), &val)
-	fmt.Printf("with 1 element: err=%q\n", err)
-
+	fmt.Printf("with 1 element: err=%q val=%v\n", err, val)
 	// Output:
 	// with 4 elements: err=<nil> val={1 2 [3 4]}
 	// with 6 elements: err=<nil> val={1 2 [3 4 5 6]}
-	// with 1 element: err="rlp: too few elements for rlp.structWithTail"
+	// with 1 element: err=%!q(<nil>) val={1 2 []}
 }
