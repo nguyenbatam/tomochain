@@ -109,7 +109,7 @@ func TestStreamErrors(t *testing.T) {
 		{"C8C9010101010101010101", calls{"List", "Kind"}, nil, ErrElemTooLarge},
 		{"C3C2010201", calls{"List", "List", "Uint", "Uint", "ListEnd", "Uint"}, nil, EOL},
 		{"00", calls{"ListEnd"}, nil, errNotInList},
-		{"C401020304", calls{"List", "Uint", "ListEnd"}, nil, errNotAtEOL},
+		{"C401020304", calls{"List", "Uint", "ListEnd"}, nil, nil},
 
 		// Non-canonical integers (e.g. leading zero bytes).
 		{"00", calls{"Uint"}, nil, ErrCanonInt},
@@ -388,12 +388,12 @@ var decodeTests = []decodeTest{
 	{input: "C50102030405", ptr: new([5]uint), value: [5]uint{1, 2, 3, 4, 5}},
 	{input: "C0", ptr: new([5]uint), error: "rlp: input list has too few elements for [5]uint"},
 	{input: "C102", ptr: new([5]uint), error: "rlp: input list has too few elements for [5]uint"},
-	{input: "C6010203040506", ptr: new([5]uint), error: "rlp: input list has too many elements for [5]uint"},
+	{input: "C6010203040506", ptr: new([5]uint), value: [5]uint{1, 2, 3, 4, 5}},
 	{input: "F8020004", ptr: new([5]uint), error: "rlp: non-canonical size information for [5]uint"},
 
 	// zero sized arrays
 	{input: "C0", ptr: new([0]uint), value: [0]uint{}},
-	{input: "C101", ptr: new([0]uint), error: "rlp: input list has too many elements for [0]uint"},
+	{input: "C101", ptr: new([0]uint), value: [0]uint{}},
 
 	// byte slices
 	{input: "01", ptr: new([]byte), value: []byte{1}},
@@ -451,27 +451,22 @@ var decodeTests = []decodeTest{
 	{
 		input: "C0",
 		ptr:   new(simplestruct),
-		error: "rlp: too few elements for rlp.simplestruct",
+		value: simplestruct{A: 0x0, B: ""},
 	},
 	{
 		input: "C105",
 		ptr:   new(simplestruct),
-		error: "rlp: too few elements for rlp.simplestruct",
+		value: simplestruct{A: 0x5, B: ""},
 	},
 	{
 		input: "C7C50583343434C0",
 		ptr:   new([]*simplestruct),
-		error: "rlp: too few elements for rlp.simplestruct, decoding into ([]*rlp.simplestruct)[1]",
-	},
-	{
-		input: "83222222",
-		ptr:   new(simplestruct),
-		error: "rlp: expected input list for rlp.simplestruct",
+		value: []*simplestruct{{A: 0x5, B: "444"}, {}},
 	},
 	{
 		input: "C3010101",
 		ptr:   new(simplestruct),
-		error: "rlp: input list has too many elements for rlp.simplestruct",
+		value: simplestruct{A: 0x1, B: "\x01"},
 	},
 	{
 		input: "C501C3C00000",
