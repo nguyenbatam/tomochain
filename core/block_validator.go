@@ -130,10 +130,10 @@ func (v *BlockValidator) ValidateMatchingOrder(tomoXService *tomox.TomoX, stated
 		}
 
 		// SDK node doesn't need to run ME
-		if tomoXService.IsSDKNode() {
-			log.Debug("SDK node ignore running matching engine")
-			continue
-		}
+		//if tomoXService.IsSDKNode() {
+		//	log.Debug("SDK node ignore running matching engine")
+		//	continue
+		//}
 
 		//ob, err := tomoXService.GetOrderBook(order.PairName, true, blockHash)
 		// if orderbook of this pairName has been updated by previous tx in this block, use it
