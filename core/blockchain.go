@@ -1376,7 +1376,6 @@ func (bc *BlockChain) insertChain(chain types.Blocks) (int, []interface{}, []*ty
 			bc.reportBlock(block, receipts, err)
 			return i, events, coalescedLogs, err
 		}
-		hashNoValidator := block.HashNoValidator()
 		// clear the previous dry-run cache
 		var tomoxState *tomox_state.TomoXStateDB
 		if bc.Config().IsTIPTomoX(block.Number()) && tomoXService != nil {
@@ -1392,7 +1391,7 @@ func (bc *BlockChain) insertChain(chain types.Blocks) (int, []interface{}, []*ty
 			}
 			for _, txMatchBatch := range txMatchBatchData {
 				log.Debug("Verify matching transaction", "txHash", txMatchBatch.TxHash.Hex())
-				err := bc.Validator().ValidateMatchingOrder(tomoXService, statedb, tomoxState, txMatchBatch, hashNoValidator)
+				err := bc.Validator().ValidateMatchingOrder(tomoXService, statedb, tomoxState, txMatchBatch, block.Header().Coinbase)
 				if err != nil {
 					bc.reportBlock(block, receipts, err)
 					return i, events, coalescedLogs, err
@@ -1626,7 +1625,7 @@ func (bc *BlockChain) getResultBlock(block *types.Block, verifiedM2 bool) (*Resu
 		}
 		for _, txMatchBatch := range txMatchBatchData {
 			log.Debug("Verify matching transaction", "txHash", txMatchBatch.TxHash.Hex())
-			err := bc.Validator().ValidateMatchingOrder(tomoXService, statedb, tomoxState, txMatchBatch, block.HashNoValidator())
+			err := bc.Validator().ValidateMatchingOrder(tomoXService, statedb, tomoxState, txMatchBatch, block.Header().Coinbase)
 			if err != nil {
 				bc.reportBlock(block, receipts, err)
 				return nil, err

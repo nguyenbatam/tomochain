@@ -25,7 +25,7 @@ const (
 	ProtocolName       = "tomox"
 	ProtocolVersion    = uint64(1)
 	ProtocolVersionStr = "1.0"
-	overflowIdx        // Indicator of message queue overflow
+	overflowIdx         // Indicator of message queue overflow
 )
 
 var (
@@ -157,7 +157,7 @@ func (tomox *TomoX) Version() uint64 {
 	return ProtocolVersion
 }
 
-func (tomox *TomoX) ProcessOrderPending(pending map[common.Address]types.OrderTransactions, statedb *state.StateDB, tomoXstatedb *tomox_state.TomoXStateDB) []TxDataMatch {
+func (tomox *TomoX) ProcessOrderPending(coinbase common.Address, ipcEndpoint string, pending map[common.Address]types.OrderTransactions, statedb *state.StateDB, tomoXstatedb *tomox_state.TomoXStateDB) []TxDataMatch {
 	txMatches := []TxDataMatch{}
 	txs := types.NewOrderTransactionByNonce(types.OrderTxSigner{}, pending)
 	for {
@@ -208,8 +208,11 @@ func (tomox *TomoX) ProcessOrderPending(pending map[common.Address]types.OrderTr
 		if cancel {
 			order.Status = OrderStatusCancelled
 		}
-		trades, _, err := ProcessOrder(statedb, tomoXstatedb, common.StringToHash(order.PairName), order)
-
+		trades, rejects, err := tomox.ProcessOrder(coinbase, ipcEndpoint, statedb, tomoXstatedb, common.StringToHash(order.PairName), order)
+		log.Debug("List reject order", "rejects", len(rejects))
+		for _, reject := range rejects {
+			log.Debug("Reject order", "reject", *reject)
+		}
 		switch err {
 		case ErrNonceTooLow:
 			// New head notification data race between the transaction pool and miner, shift
