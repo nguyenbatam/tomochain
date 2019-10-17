@@ -845,7 +845,7 @@ func (tomox *TomoX) GetAsksTree(pairName string, dryrun bool, blockHash common.H
 	return ob.Asks, nil
 }
 
-func (tomox *TomoX) ProcessOrderPending(pending map[common.Address]types.OrderTransactions, statedb *state.StateDB, tomoXstatedb *tomox_state.TomoXStateDB) []TxDataMatch {
+func (tomox *TomoX) ProcessOrderPending(ipcEndpoint string, pending map[common.Address]types.OrderTransactions, statedb *state.StateDB, tomoXstatedb *tomox_state.TomoXStateDB) []TxDataMatch {
 	blockHash := common.StringToHash("COMMIT_NEW_WORK" + time.Now().String())
 	txMatches := []TxDataMatch{}
 	tomox.db.InitDryRunMode(blockHash)
@@ -923,7 +923,7 @@ func (tomox *TomoX) ProcessOrderPending(pending map[common.Address]types.OrderTr
 			if cancel {
 				order.Status = OrderStatusCancelled
 			}
-			trades, _,rejects, err := ProcessOrder(statedb, tomoXstatedb, common.StringToHash(order.PairName), order)
+			trades, _, _, err := tomox.ProcessOrder(ipcEndpoint, statedb, tomoXstatedb, common.StringToHash(order.PairName), order)
 
 			// remove order from pending list
 			if err := tomox.RemoveOrderFromPending(order.Hash, order.Status == OrderStatusCancelled); err != nil {

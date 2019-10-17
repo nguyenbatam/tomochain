@@ -95,7 +95,6 @@ func CheckRelayerFee(relayer common.Address, fee *big.Int, statedb *state.StateD
 	locBigDeposit := new(big.Int).SetUint64(uint64(0)).Add(locBig, RelayerStructMappingSlot["_deposit"])
 	locHashDeposit := common.BigToHash(locBigDeposit)
 	balance := statedb.GetState(common.HexToAddress(common.RelayerRegistrationSMC), locHashDeposit).Big()
-	log.Debug("ApplyTomoXMatchedTransaction settle balance: SubRelayerFee BEFORE", "relayer", relayer.String(), "balance", balance)
 	if balance.Cmp(fee) < 0 {
 		return errors.Errorf("relayer %s isn't enough tomo fee", relayer.String())
 	}
@@ -160,16 +159,7 @@ func SubTokenBalance(addr common.Address, value *big.Int, token common.Address, 
 		return errors.Errorf("token %s isn't exist", token.String())
 	}
 }
-
-func CheckTokenBalance(addr common.Address, value *big.Int, token common.Address, statedb *state.StateDB) error {
-	balance := GetTokenBalance(addr, value, token, statedb)
-	if balance.Cmp(value) < 0 {
-		return errors.Errorf("value %s in token %s not enough , have : %s , want : %s  ", addr.String(), token.String(), balance, value)
-	}
-	return nil
-}
-
-func GetTokenBalance(addr common.Address, value *big.Int, token common.Address, statedb *state.StateDB) *big.Int {
+func GetTokenBalance(addr common.Address, token common.Address, statedb *state.StateDB) *big.Int {
 	// TOMO native
 	if token.String() == common.TomoNativeAddress {
 		return statedb.GetBalance(addr)

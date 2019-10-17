@@ -621,7 +621,7 @@ func (self *worker) commitNewWork() {
 			log.Debug("Start processing order pending")
 			orderPending, _ := self.eth.OrderPool().Pending()
 			log.Debug("Start processing order pending", "len", len(orderPending))
-			txMatches = tomoX.ProcessOrderPending(orderPending, work.state, work.tomoxState)
+			txMatches = tomoX.ProcessOrderPending(self.chain.IPCEndpoint, orderPending, work.state, work.tomoxState)
 			log.Debug("transaction matches found", "txMatches", len(txMatches))
 		}
 	}

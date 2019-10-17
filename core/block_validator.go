@@ -153,7 +153,7 @@ func (v *BlockValidator) ValidateMatchingOrder(tomoXService *tomox.TomoX, stated
 		//}
 		//obHash, err := ob.Hash()
 		// process Matching Engine
-		if _, _, _, err := tomox.ProcessOrder(statedb, tomoxStatedb, common.StringToHash(order.PairName), order); err != nil {
+		if _, _, _, err := tomoXService.ProcessOrder(v.bc.IPCEndpoint, statedb, tomoxStatedb, common.StringToHash(order.PairName), order); err != nil {
 			return err
 		}
 		//// verify new state
