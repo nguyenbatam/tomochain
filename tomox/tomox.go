@@ -923,7 +923,7 @@ func (tomox *TomoX) ProcessOrderPending(pending map[common.Address]types.OrderTr
 			if cancel {
 				order.Status = OrderStatusCancelled
 			}
-			trades, _, err := ProcessOrder(statedb, tomoXstatedb, common.StringToHash(order.PairName), order)
+			trades, _,rejects, err := ProcessOrder(statedb, tomoXstatedb, common.StringToHash(order.PairName), order)
 
 			// remove order from pending list
 			if err := tomox.RemoveOrderFromPending(order.Hash, order.Status == OrderStatusCancelled); err != nil {
