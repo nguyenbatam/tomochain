@@ -20,6 +20,7 @@ package tomox_state
 import (
 	"fmt"
 	"math/big"
+	"sort"
 	"sync"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -28,6 +29,10 @@ import (
 	"github.com/ethereum/go-ethereum/trie"
 )
 
+type revision struct {
+	id           int
+	journalIndex int
+}
 // StateDBs within the ethereum protocol are used to store anything
 // within the merkle trie. StateDBs take care of caching and storing
 // nested states. It's the general query interface to retrieve:
@@ -47,6 +52,12 @@ type TomoXStateDB struct {
 	// during a database read is memoized here and will eventually be returned
 	// by TomoXStateDB.Commit.
 	dbErr error
+
+	// Journal of state modifications. This is the backbone of
+	// Snapshot and RevertToSnapshot.
+	journal        journal
+	validRevisions []revision
+	nextRevisionId int
 
 	lock sync.Mutex
 }
@@ -418,6 +429,39 @@ func (self *TomoXStateDB) Copy() *TomoXStateDB {
 	return state
 }
 
+func (s *TomoXStateDB) clearJournalAndRefund() {
+	s.journal = nil
+	s.validRevisions = s.validRevisions[:0]
+}
+
+// Snapshot returns an identifier for the current revision of the state.
+func (self *TomoXStateDB) Snapshot() int {
+	id := self.nextRevisionId
+	self.nextRevisionId++
+	self.validRevisions = append(self.validRevisions, revision{id, len(self.journal)})
+	return id
+}
+
+// RevertToSnapshot reverts all state changes made since the given revision.
+func (self *TomoXStateDB) RevertToSnapshot(revid int) {
+	// Find the snapshot in the stack of valid snapshots.
+	idx := sort.Search(len(self.validRevisions), func(i int) bool {
+		return self.validRevisions[i].id >= revid
+	})
+	if idx == len(self.validRevisions) || self.validRevisions[idx].id != revid {
+		panic(fmt.Errorf("revision id %v cannot be reverted", revid))
+	}
+	snapshot := self.validRevisions[idx].journalIndex
+
+	// Replay the journal to undo changes.
+	for i := len(self.journal) - 1; i >= snapshot; i-- {
+		self.journal[i].undo(self)
+	}
+	self.journal = self.journal[:snapshot]
+
+	// Remove invalidated snapshots from the stack.
+	self.validRevisions = self.validRevisions[:idx]
+}
 // Finalise finalises the state by removing the self destructed objects
 // and clears the journal as well as the refunds.
 func (s *TomoXStateDB) Finalise() {
