@@ -17,10 +17,9 @@
 package tomox_state
 
 import (
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/tomox/tomox_state"
 	"math/big"
-
-	"github.com/ethereum/go-ethereum/common"
 )
 
 type journalEntry interface {
@@ -31,111 +30,30 @@ type journal []journalEntry
 
 type (
 	// Changes to the account trie.
-	createObjectChange struct {
-		account *common.Address
+	insertOrder struct {
+		orderBook *common.Hash
+		order     *OrderItem
 	}
-	resetObjectChange struct {
-		prev *stateObject
+	cancerOrder struct {
+		orderBook *common.Hash
+		order     *OrderItem
 	}
-	suicideChange struct {
-		account     *common.Address
-		prev        bool // whether account had already suicided
-		prevbalance *big.Int
+	subAmountOrder struct {
+		orderBook *common.Hash
+		order     *OrderItem
+		oldAmount *big.Int
 	}
-
-	// Changes to individual accounts.
-	balanceChange struct {
-		account *common.Address
-		prev    *big.Int
-	}
-	nonceChange struct {
-		account *common.Address
-		prev    uint64
-	}
-	storageChange struct {
-		account       *common.Address
-		key, prevalue common.Hash
-	}
-	codeChange struct {
-		account            *common.Address
-		prevcode, prevhash []byte
-	}
-
-	// Changes to other state values.
-	refundChange struct {
-		prev uint64
-	}
-	addLogChange struct {
-		txhash common.Hash
-	}
-	addPreimageChange struct {
-		hash common.Hash
-	}
-	touchChange struct {
-		account   *common.Address
-		prev      bool
-		prevDirty bool
+	increaseUserNonce struct {
+		account  *common.Hash
+		oldNonce *big.Int
 	}
 )
 
-func (ch createObjectChange) undo(s *StateDB) {
-	delete(s.stateObjects, *ch.account)
-	delete(s.stateObjectsDirty, *ch.account)
+func (ch insertOrder) undo(s *TomoXStateDB) {
 }
-
-func (ch resetObjectChange) undo(s *StateDB) {
-	s.setStateObject(ch.prev)
+func (ch cancerOrder) undo(s *TomoXStateDB) {
 }
-
-func (ch suicideChange) undo(s *StateDB) {
-	obj := s.getStateObject(*ch.account)
-	if obj != nil {
-		obj.suicided = ch.prev
-		obj.setBalance(ch.prevbalance)
-	}
+func (ch subAmountOrder) undo(s *TomoXStateDB) {
 }
-
-var ripemd = common.HexToAddress("0000000000000000000000000000000000000003")
-
-func (ch touchChange) undo(s *StateDB) {
-	if !ch.prev && *ch.account != ripemd {
-		s.getStateObject(*ch.account).touched = ch.prev
-		if !ch.prevDirty {
-			delete(s.stateObjectsDirty, *ch.account)
-		}
-	}
-}
-
-func (ch balanceChange) undo(s *StateDB) {
-	s.getStateObject(*ch.account).setBalance(ch.prev)
-}
-
-func (ch nonceChange) undo(s *StateDB) {
-	s.getStateObject(*ch.account).setNonce(ch.prev)
-}
-
-func (ch codeChange) undo(s *StateDB) {
-	s.getStateObject(*ch.account).setCode(common.BytesToHash(ch.prevhash), ch.prevcode)
-}
-
-func (ch storageChange) undo(s *StateDB) {
-	s.getStateObject(*ch.account).setState(ch.key, ch.prevalue)
-}
-
-func (ch refundChange) undo(s *StateDB) {
-	s.refund = ch.prev
-}
-
-func (ch addLogChange) undo(s *StateDB) {
-	logs := s.logs[ch.txhash]
-	if len(logs) == 1 {
-		delete(s.logs, ch.txhash)
-	} else {
-		s.logs[ch.txhash] = logs[:len(logs)-1]
-	}
-	s.logSize--
-}
-
-func (ch addPreimageChange) undo(s *StateDB) {
-	delete(s.preimages, ch.hash)
+func (ch increaseUserNonce) undo(s *TomoXStateDB) {
 }
