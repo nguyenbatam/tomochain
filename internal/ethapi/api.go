@@ -1941,6 +1941,10 @@ func (s *PublicTomoXTransactionPoolAPI) GetBidTree(ctx context.Context, baseToke
 	return result, nil
 }
 
+// GetPendingOrders returns pending orders of the given pair
+func (api *PublicTomoXTransactionPoolAPI) GetPendingOrders(ctx context.Context,addr common.Address) ([]common.Hash, error) {
+	return api.b.GetPoolOrders(addr)
+}
 func (s *PublicTomoXTransactionPoolAPI) GetAskTree(ctx context.Context, baseToken,quoteToken common.Address) (map[*big.Int]tomox_state.DumpOrderList, error) {
 	block := s.b.CurrentBlock()
 	if block == nil {

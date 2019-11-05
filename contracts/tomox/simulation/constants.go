@@ -33,7 +33,18 @@ var (
 
 	TOMONative = common.HexToAddress("0x0000000000000000000000000000000000000001")
 
-	TokenNameList = []string{"BTC", "ETH", "XRP", "LTC", "BNB", "ADA", "ETC", "BCH", "EOS"}
+	TokenNameList    = []string{"BTC", "ETH", "XRP", "LTC", "BNB", "ADA", "ETC", "BCH", "EOS"}
+	TokenNameAddress = map[string]common.Address{"BTC": common.HexToAddress("0x4d7eA2cE949216D6b120f3AA10164173615A2b6C"),
+		"ETH": common.HexToAddress("0xC2fa1BA90b15E3612E0067A0020192938784D9C5"),
+		"XRP": common.HexToAddress("0xAad540ac542C3688652a3fc7b8e21B3fC1D097e9"),
+		"LTC": common.HexToAddress("0x5dc27D59bB80E0EF853Bb2e27B94113DF08F547F"),
+		"BNB": common.HexToAddress("0x6F98655A8fa7AEEF3147ee002c666d09c7AA4F5c"),
+		"ADA": common.HexToAddress("0xaC389aCA56394a5B14918cF6437600760B6c650C"),
+		"ETC": common.HexToAddress("0x576201Ac3f1E0fe483a9320DaCc4B08EB3E58306"),
+		"BCH": common.HexToAddress("0xf992cf45394dAc5f50A26446de17803a79B940da"),
+		"EOS": common.HexToAddress("0xFDF68dE6dFFd893221fc9f7985FeBC2AB20761A6"),
+		"TOMO":common.HexToAddress(common.TomoNativeAddress),
+	}
 	TeamAddresses = []common.Address{
 		common.HexToAddress("0x8fB1047e874d2e472cd08980FF8383053dd83102"), // MM team
 		common.HexToAddress("0x9ca1514E3Dc4059C29a1608AE3a3E3fd35900888"), // MM team

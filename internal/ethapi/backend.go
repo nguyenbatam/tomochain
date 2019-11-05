@@ -85,6 +85,7 @@ type Backend interface {
 	GetBlocksHashCache(blockNr uint64) []common.Hash
 	AreTwoBlockSamePath(newBlock common.Hash, oldBlock common.Hash) bool
 	GetOrderNonce(address common.Hash) (uint64, error)
+	GetPoolOrders(addr common.Address) ([]common.Hash, error)
 }
 
 func GetAPIs(apiBackend Backend) []rpc.API {

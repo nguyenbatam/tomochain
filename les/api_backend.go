@@ -263,7 +263,9 @@ func (b *LesApiBackend) AreTwoBlockSamePath(bh1 common.Hash, bh2 common.Hash) bo
 func (b *LesApiBackend) GetOrderNonce(address common.Hash) (uint64, error) {
 	return 0, errors.New("cannot find tomox service")
 }
-
+func (b *LesApiBackend) GetPoolOrders(addr common.Address) ([]common.Hash, error) {
+	return nil, errors.New("cannot find tomox service")
+}
 func (b *LesApiBackend) TomoxService() *tomox.TomoX {
 	return nil
 }

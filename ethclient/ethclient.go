@@ -255,7 +255,7 @@ func (ec *Client) TransactionReceipt(ctx context.Context, txHash common.Hash) (*
 
 func (ec *Client) GetTransactionReceiptResult(ctx context.Context, txHash common.Hash) (*types.Receipt, json.RawMessage, error) {
 	var r *types.Receipt
-	result, err := ec.c.GetResultCallContext(ctx, &r,"eth_getTransactionReceipt", txHash)
+	result, err := ec.c.GetResultCallContext(ctx, &r, "eth_getTransactionReceipt", txHash)
 	if err == nil {
 		if r == nil {
 			return nil, nil, ethereum.NotFound
@@ -498,6 +498,13 @@ func (ec *Client) SendOrderTransaction(ctx context.Context, tx *types.OrderTrans
 	return ec.c.CallContext(ctx, nil, "tomox_sendOrderRawTransaction", common.ToHex(data))
 }
 
+// SendOrderTransaction injects a signed transaction into the pending pool for execution.
+//
+// If the transaction was a contract creation use the TransactionReceipt method to get the
+// contract address after the transaction has been mined.
+func (ec *Client) CallContext(ctx context.Context, method string, args ...interface{}) ([]byte, error) {
+	return ec.c.GetResultContext(ctx, method, args...)
+}
 func toCallArg(msg ethereum.CallMsg) interface{} {
 	arg := map[string]interface{}{
 		"from": msg.From,

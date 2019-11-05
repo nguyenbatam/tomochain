@@ -421,6 +421,17 @@ func (b *EthApiBackend) GetOrderNonce(address common.Hash) (uint64, error) {
 	}
 	return 0, errors.New("cannot find tomox service")
 }
+func (b *EthApiBackend) GetPoolOrders(addr common.Address) ([]common.Hash, error) {
+	pending, err := b.eth.orderPool.Pending()
+	if err != nil {
+		return nil, err
+	}
+	hashs := []common.Hash{}
+	for _, order := range pending[addr] {
+		hashs = append(hashs, order.Hash())
+	}
+	return hashs, nil
+}
 
 func (b *EthApiBackend) TomoxService() *tomox.TomoX {
 	return b.eth.TomoX
