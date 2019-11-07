@@ -6,8 +6,11 @@ import (
 	"github.com/ethereum/go-ethereum/cmd/utils"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
+	"github.com/ethereum/go-ethereum/core/state"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/eth"
 	"github.com/ethereum/go-ethereum/ethdb"
+	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/ethereum/go-ethereum/trie"
 	"github.com/syndtr/goleveldb/leveldb"
 	"github.com/syndtr/goleveldb/leveldb/util"
@@ -16,14 +19,16 @@ import (
 )
 
 var (
-	from = flag.String("from", "/data/tomo/chaindata", "directory to TomoChain chaindata")
-	to   = flag.String("to", "/data/tomo/chaindata_copy", "directory to clean chaindata")
+	from   = flag.String("from", "/data/tomo/chaindata", "directory to TomoChain chaindata")
+	to     = flag.String("to", "/data/tomo/chaindata_copy", "directory to clean chaindata")
 
 	sercureKey = []byte("secure-key-") // preimagePrefix + hash -> preimage
 	nWorker    = runtime.NumCPU() / 2
 	finish     = int32(0)
 	running    = true
 	stateRoots = make(chan TrieRoot)
+	emptyRoot  = common.HexToHash("56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421")
+	emptyState = crypto.Keccak256Hash(nil)
 )
 
 type TrieRoot struct {
@@ -43,9 +48,11 @@ func main() {
 	header := core.GetHeader(fromDB, head, core.GetBlockNumber(fromDB, head))
 	number := header.Number.Uint64()
 	lastestRoot := common.Hash{}
+	lastestRootNumber := uint64(0)
 	backupRoot := common.Hash{}
-	backupNumber := uint64(0)
-	for number >= 0 {
+	backupNumber := number
+	for number >= 1 {
+		number = number - 1
 		hash := core.GetCanonicalHash(fromDB, number)
 		root := core.GetHeader(fromDB, hash, number).Root
 		_, err := trie.NewSecure(root, tridb, 0)
@@ -54,21 +61,48 @@ func main() {
 		}
 		if common.EmptyHash(lastestRoot) {
 			lastestRoot = root
-		} else {
+			lastestRootNumber = number
+		} else if root != lastestRoot {
 			backupRoot = root
-			backupNumber = header.Number.Uint64()
+			backupNumber = number
 			break
 		}
 	}
-	copyHeadData(*from, *to)
-	copyBlockData(*from, *to, backupNumber)
-	copyStateData(*from, *to, lastestRoot)
-	copyStateData(*from, *to, backupRoot)
+	fmt.Println("lastestRoot", lastestRoot.Hex(), "lastestRootNumber", lastestRootNumber, "backupRoot", backupRoot.Hex(), "backupNumber", backupNumber, "currentNumber", header.Number.Uint64())
+	fromDB.Close()
+	err := copyHeadData(*from, *to)
+	if err != nil {
+		fmt.Println("copyHeadData", err)
+		return
+	}
+	err = copyBlockData(*from, *to, backupNumber)
+	if err != nil {
+		fmt.Println("copyBlockData", err)
+		return
+	}
+	err = copyStateData(*from, *to, lastestRoot)
+	if err != nil {
+		fmt.Println("copyStateData lastestRoot", lastestRoot.Hex(), "err", err)
+		return
+	}
+	//err = copyStateData(*from, *to, backupRoot)
+	//if err != nil {
+	//	fmt.Println("copyStateData backupRoot", backupRoot.Hex(),"err",err)
+	//	return
+	//}
 }
-func copyHeadData(from string, to string) {
+func copyHeadData(from string, to string) error {
 	fmt.Println(time.Now(), "copyHeadData")
-	fromDB, _ := ethdb.NewLDBDatabase(from, eth.DefaultConfig.DatabaseCache, utils.MakeDatabaseHandles())
-	toDB, _ := ethdb.NewLDBDatabase(to, eth.DefaultConfig.DatabaseCache, utils.MakeDatabaseHandles())
+	fromDB, err := ethdb.NewLDBDatabase(from, eth.DefaultConfig.DatabaseCache, utils.MakeDatabaseHandles())
+	defer fromDB.Close()
+	if err != nil {
+		return err
+	}
+	toDB, err := ethdb.NewLDBDatabase(to, eth.DefaultConfig.DatabaseCache, utils.MakeDatabaseHandles())
+	defer toDB.Close()
+	if err != nil {
+		return err
+	}
 	//headHeaderKey = []byte("LastHeader")
 	hash := core.GetHeadHeaderHash(fromDB)
 	core.WriteHeadHeaderHash(toDB, hash)
@@ -81,16 +115,23 @@ func copyHeadData(from string, to string) {
 	//trieSyncKey   = []byte("TrieSync")
 	trie := core.GetTrieSyncProgress(fromDB)
 	core.WriteTrieSyncProgress(toDB, trie)
-	fromDB.Close()
 	fmt.Println(time.Now(), "compact")
 	toDB.LDB().CompactRange(util.Range{})
-	toDB.Close()
 	fmt.Println(time.Now(), "end")
+	return nil
 }
-func copyBlockData(from string, to string, backupNumber uint64) {
-	fmt.Println(time.Now(), "copyBlockData")
-	fromDB, _ := ethdb.NewLDBDatabase(from, eth.DefaultConfig.DatabaseCache, utils.MakeDatabaseHandles())
-	toDB, _ := ethdb.NewLDBDatabase(to, eth.DefaultConfig.DatabaseCache, utils.MakeDatabaseHandles())
+func copyBlockData(from string, to string, backupNumber uint64) error {
+	fmt.Println(time.Now(), "copyBlockData", "backupNumber", backupNumber)
+	fromDB, err := ethdb.NewLDBDatabase(from, eth.DefaultConfig.DatabaseCache, utils.MakeDatabaseHandles())
+	defer fromDB.Close()
+	if err != nil {
+		return err
+	}
+	toDB, err := ethdb.NewLDBDatabase(to, eth.DefaultConfig.DatabaseCache, utils.MakeDatabaseHandles())
+	defer toDB.Close()
+	if err != nil {
+		return err
+	}
 	head := core.GetHeadBlockHash(fromDB)
 	header := core.GetHeader(fromDB, head, core.GetBlockNumber(fromDB, head))
 	number := header.Number.Uint64()
@@ -113,85 +154,39 @@ func copyBlockData(from string, to string, backupNumber uint64) {
 		header = core.GetHeader(fromDB, block.ParentHash(), number-1)
 		number = header.Number.Uint64()
 	}
-	fromDB.Close()
 	fmt.Println(time.Now(), "compact")
 	toDB.LDB().CompactRange(util.Range{})
-	toDB.Close()
 	fmt.Println(time.Now(), "end")
+	return nil
 }
 
-func copyStateData(from string, to string, root common.Hash) {
-	fmt.Println(time.Now(), "copyBlockData")
-	fromDB, _ := ethdb.NewLDBDatabase(from, eth.DefaultConfig.DatabaseCache, utils.MakeDatabaseHandles())
-	toDB, _ := ethdb.NewLDBDatabase(to, eth.DefaultConfig.DatabaseCache, utils.MakeDatabaseHandles())
-	head := core.GetHeadBlockHash(fromDB)
-	header := core.GetHeader(fromDB, head, core.GetBlockNumber(fromDB, head))
-	number := header.Number.Uint64()
-	for i := length; i >= 0; i-- {
-		hash := header.Hash()
-		//bodyPrefix          = []byte("b") // bodyPrefix + num (uint64 big endian) + hash -> block body
-		//blockHashPrefix     = []byte("H") // blockHashPrefix + hash -> num (uint64 big endian)
-		//headerPrefix        = []byte("h") // headerPrefix + num (uint64 big endian) + hash -> header
-		block := core.GetBlock(fromDB, hash, number)
-		core.WriteBlock(toDB, block)
-		//tdSuffix            = []byte("t") // headerPrefix + num (uint64 big endian) + hash + tdSuffix -> td
-		td := core.GetTd(fromDB, hash, number)
-		core.WriteTd(toDB, hash, number, td)
-		//numSuffix           = []byte("n") // headerPrefix + num (uint64 big endian) + numSuffix -> hash
-		hash = core.GetCanonicalHash(fromDB, number)
-		core.WriteCanonicalHash(toDB, hash, number)
-		if number == 0 {
-			break
-		}
-		header = core.GetHeader(fromDB, block.ParentHash(), number-1)
-		number = header.Number.Uint64()
-	}
-	fromDB.Close()
-	fmt.Println(time.Now(), "compact")
-	toDB.LDB().CompactRange(util.Range{})
-	toDB.Close()
-	fmt.Println(time.Now(), "end")
-}
-
-func copyTrieData(from *trie.SecureTrie, to *trie.SecureTrie) {
-	nodeIterator := from.NodeIterator(nil)
-	for nodeIterator.Next(true) {
-		nodeIterator.
-	}
-}
-
-func copyNodeData(from *ethdb.LDBDatabase, to *ethdb.LDBDatabase, node common.Hash) {
-	if to.Has(node)
-		nodeIterator := from.NodeIterator(nil)
-	for nodeIterator.Next(true) {
-		nodeIterator.
-	}
-}
-
-func processNodeAddress(n trie.Node, path []byte, fromDB *leveldb.DB, toDB *leveldb.DB) error {
-	keyDB := []byte{}
-	if _, ok := n.(trie.ValueNode); ok {
-		buf := append(sercureKey, path...)
-		keyDB = buf
-	} else {
-		hash, _ := n.Cache()
-		keyDB = hash
-	}
-	exist, err := toDB.Has(keyDB, nil)
+func copyStateData(from, to string, root common.Hash) error {
+	fmt.Println(time.Now(), "run copy state data ", "root", root.Hex())
+	fromDB, err := ethdb.NewLDBDatabase(from, eth.DefaultConfig.DatabaseCache, utils.MakeDatabaseHandles())
+	defer fromDB.Close()
 	if err != nil {
 		return err
 	}
-	if exist {
-		return nil
-	}
-	value, err := fromDB.Get(keyDB, nil)
+	toDB, err := ethdb.NewLDBDatabase(to, eth.DefaultConfig.DatabaseCache, utils.MakeDatabaseHandles())
+	defer toDB.Close()
 	if err != nil {
 		return err
 	}
-	err = toDB.Put(keyDB, value, nil)
+	rootNode, valueDB, err := resolveHash(root[:], fromDB.LDB())
 	if err != nil {
 		return err
 	}
+	err = processNode(rootNode, nil, fromDB.LDB(), toDB.LDB(), true)
+	if err != nil {
+		return err
+	}
+	err = toDB.LDB().Put(root[:], valueDB, nil)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+func processNode(n trie.Node, path []byte, fromDB *leveldb.DB, toDB *leveldb.DB, checkAddr bool) error {
 	switch node := n.(type) {
 	case *trie.FullNode:
 		// Full Node, move to the first non-nil child.
@@ -200,11 +195,16 @@ func processNodeAddress(n trie.Node, path []byte, fromDB *leveldb.DB, toDB *leve
 			if child != nil {
 				childNode := child
 				var err error = nil
+				var valueDB []byte
 				if _, ok := child.(trie.HashNode); ok {
-					childNode, err = resolveHash(child.(trie.HashNode), fromDB)
+					childNode, valueDB, err = resolveHash(child.(trie.HashNode), fromDB)
 				}
 				if err == nil {
-					err = processNode(childNode, append(path, byte(i)), fromDB, toDB)
+					err = processNode(childNode, append(path, byte(i)), fromDB, toDB, checkAddr)
+					if err != nil {
+						return err
+					}
+					err = toDB.Put(child.(trie.HashNode), valueDB, nil)
 					if err != nil {
 						return err
 					}
@@ -220,13 +220,20 @@ func processNodeAddress(n trie.Node, path []byte, fromDB *leveldb.DB, toDB *leve
 		// Short Node, return the pointer singleton child
 		childNode := node.Val
 		var err error = nil
+		var valueDB []byte
 		if _, ok := node.Val.(trie.HashNode); ok {
-			childNode, err = resolveHash(node.Val.(trie.HashNode), fromDB)
+			childNode, valueDB, err = resolveHash(node.Val.(trie.HashNode), fromDB)
 		}
 		if err == nil {
-			err = processNode(childNode, append(path, node.Key...), fromDB, toDB)
+			err = processNode(childNode, append(path, node.Key...), fromDB, toDB, checkAddr)
 			if err != nil {
 				return err
+			}
+			if _, ok := node.Val.(trie.HashNode); ok {
+				err := toDB.Put(node.Val.(trie.HashNode), valueDB, nil)
+				if err != nil {
+					return err
+				}
 			}
 		} else if err != nil {
 			_, ok := err.(*trie.MissingNodeError)
@@ -234,240 +241,60 @@ func processNodeAddress(n trie.Node, path []byte, fromDB *leveldb.DB, toDB *leve
 				return err
 			}
 		}
-	case *trie.ValueNode :
-
-	}
-	return nil
-}
-
-func processNode(n trie.Node, path []byte, fromDB *leveldb.DB, toDB *leveldb.DB) error {
-	keyDB := []byte{}
-	if _, ok := n.(trie.ValueNode); ok {
-		buf := append(sercureKey, path...)
-		keyDB = buf
-	} else {
-		hash, _ := n.Cache()
-		keyDB = hash
-	}
-	exist, err := toDB.Has(keyDB, nil)
-	if err != nil {
-		return err
-	}
-	if exist {
-		return nil
-	}
-	value, err := fromDB.Get(keyDB, nil)
-	if err != nil {
-		return err
-	}
-	err = toDB.Put(keyDB, value, nil)
-	if err != nil {
-		return err
-	}
-	switch node := n.(type) {
-	case *trie.FullNode:
-		// Full Node, move to the first non-nil child.
-		for i := 0; i < len(node.Children); i++ {
-			child := node.Children[i]
-			if child != nil {
-				childNode := child
-				var err error = nil
-				if _, ok := child.(trie.HashNode); ok {
-					childNode, err = resolveHash(child.(trie.HashNode), fromDB)
-				}
-				if err == nil {
-					err = processNode(childNode, append(path, byte(i)), fromDB, toDB)
-					if err != nil {
-						return err
-					}
-				} else if err != nil {
-					_, ok := err.(*trie.MissingNodeError)
-					if !ok {
-						return err
-					}
-				}
-			}
-		}
-	case *trie.ShortNode:
-		// Short Node, return the pointer singleton child
-		childNode := node.Val
-		var err error = nil
-		if _, ok := node.Val.(trie.HashNode); ok {
-			childNode, err = resolveHash(node.Val.(trie.HashNode), fromDB)
-		}
-		if err == nil {
-			err = processNode(childNode, append(path, node.Key...), fromDB, toDB)
-			if err != nil {
+	case trie.ValueNode:
+		if checkAddr {
+			var data state.Account
+			if err := rlp.DecodeBytes(node, &data); err != nil {
+				fmt.Println("Failed to decode state object", "path", common.Bytes2Hex(path), "value", common.Bytes2Hex(node))
 				return err
 			}
-		} else if err != nil {
-			_, ok := err.(*trie.MissingNodeError)
-			if !ok {
-				return err
+			if common.EmptyHash(data.Root) && data.Root != emptyRoot && data.Root != emptyState {
+				fmt.Println("Try copy data in a smart contract ")
+				newNode, valueDB, err := resolveHash(data.Root[:], fromDB)
+				if err != nil {
+					return err
+				}
+				err = processNode(newNode, nil, fromDB, toDB, false)
+				if err != nil {
+					return err
+				}
+				err = toDB.Put(data.Root[:], valueDB, nil)
+				if err != nil {
+					return err
+				}
 			}
 		}
 	}
 	return nil
 }
 
-func resolveHash(n trie.HashNode, db *leveldb.DB) (trie.Node, error) {
+func resolveHash(n trie.HashNode, db *leveldb.DB) (trie.Node, []byte, error) {
 	enc, err := db.Get(n, nil)
 	if err != nil || enc == nil {
-		return nil, &trie.MissingNodeError{}
+		return nil, nil, &trie.MissingNodeError{}
 	}
-	return trie.MustDecodeNode(n, enc, 0), nil
+	return trie.MustDecodeNode(n, enc, 0), enc, nil
 }
 
-//func removeNodesNil(list [][17]*StateNode, length int) []*StateNode {
-//	results := make([]*StateNode, length)
-//	index := 0
-//	for _, nodes := range list {
-//		for _, node := range nodes {
-//			if node != nil {
-//				results[index] = node
-//				index++
-//			}
-//		}
-//	}
-//	return results
-//}
-//func catchEventInterupt(db *leveldb.DB) {
-//	c := make(chan os.Signal, 1)
-//	signal.Notify(c, os.Interrupt)
-//	go func() {
-//		for sig := range c {
-//			fmt.Println("catch event interrupt ", sig, running, finish)
-//			running = false
-//			if atomic.LoadInt32(&finish) == 0 {
-//				close(stateRoots)
-//				db.Close()
-//				os.Exit(1)
-//			}
-//		}
-//	}()
-//}
-//func resolveHash(n trie.HashNode, db *leveldb.DB) (trie.Node, error) {
-//	if cache.Contains(common.BytesToHash(n)) {
-//		return nil, &trie.MissingNodeError{}
-//	}
-//	enc, err := db.Get(n, nil)
-//	if err != nil || enc == nil {
-//		return nil, &trie.MissingNodeError{}
-//	}
-//	return trie.MustDecodeNode(n, enc, 0), nil
-//}
-//
-//func getAllChilds(n StateNode, db *leveldb.DB) ([17]*StateNode, error) {
-//	childs := [17]*StateNode{}
-//	switch node := n.node.(type) {
-//	case *trie.FullNode:
-//		// Full Node, move to the first non-nil child.
-//		for i := 0; i < len(node.Children); i++ {
-//			child := node.Children[i]
-//			if child != nil {
-//				childNode := child
-//				var err error = nil
-//				if _, ok := child.(trie.HashNode); ok {
-//					childNode, err = resolveHash(child.(trie.HashNode), db)
-//				}
-//				if err == nil {
-//					childs[i] = &StateNode{node: childNode, path: append(n.path, byte(i))}
-//				} else if err != nil {
-//					_, ok := err.(*trie.MissingNodeError)
-//					if !ok {
-//						return childs, err
-//					}
-//				}
-//			}
-//		}
-//	case *trie.ShortNode:
-//		// Short Node, return the pointer singleton child
-//		childNode := node.Val
-//		var err error = nil
-//		if _, ok := node.Val.(trie.HashNode); ok {
-//			childNode, err = resolveHash(node.Val.(trie.HashNode), db)
-//		}
-//		if err == nil {
-//			childs[0] = &StateNode{node: childNode, path: append(n.path, node.Key...)}
-//		} else if err != nil {
-//			_, ok := err.(*trie.MissingNodeError)
-//			if !ok {
-//				return childs, err
-//			}
-//		}
-//	}
-//	return childs, nil
-//}
-//func processNodes(node StateNode, db *leveldb.DB) ([17]*StateNode, [17]*[]byte, int) {
-//	hash, _ := node.node.Cache()
-//	commonHash := common.BytesToHash(hash)
-//	newNodes := [17]*StateNode{}
-//	keys := [17]*[]byte{}
-//	number := 0
-//	if !cache.Contains(commonHash) {
-//		childNodes, err := getAllChilds(node, db)
-//		if err != nil {
-//			fmt.Println("Error when get all childs node : ", common.Bytes2Hex(node.path), err)
-//			os.Exit(1)
-//		}
-//		for i, child := range childNodes {
-//			if child != nil {
-//				if _, ok := child.node.(trie.ValueNode); ok {
-//					buf := append(sercureKey, child.path...)
-//					keys[i] = &buf
-//				} else {
-//					hash, _ := child.node.Cache()
-//					var bytes []byte = hash
-//					keys[i] = &bytes
-//					newNodes[i] = child
-//					number++
-//				}
-//			}
-//		}
-//		cache.Add(commonHash, true)
-//	}
-//	return newNodes, keys, number
-//}
-//
-//func findNewNodes(nodes []*StateNode, db *leveldb.DB, batchlvdb *leveldb.Batch) ([][17]*StateNode, int) {
-//	length := len(nodes)
-//	chunkSize := length / nWorker
-//	if len(nodes)%nWorker != 0 {
-//		chunkSize++
-//	}
-//	childNodes := make([][17]*StateNode, length)
-//	results := make(chan ResultProcessNode)
-//	wg := sync.WaitGroup{}
-//	wg.Add(length)
-//	for i := 0; i < nWorker; i++ {
-//		from := i * chunkSize
-//		to := from + chunkSize
-//		if to > length {
-//			to = length
-//		}
-//		go func(from int, to int) {
-//			for j := from; j < to; j++ {
-//				childs, keys, number := processNodes(*nodes[j], db)
-//				go func(result ResultProcessNode) {
-//					results <- result
-//				}(ResultProcessNode{j, number, childs, keys})
-//			}
-//		}(from, to)
-//	}
-//	total := 0
-//	go func() {
-//		for result := range results {
-//			childNodes[result.index] = result.newNodes
-//			total = total + result.number
-//			for _, key := range result.keys {
-//				if key != nil {
-//					batchlvdb.Delete(*key)
-//				}
-//			}
-//			wg.Done()
-//		}
-//	}()
-//	wg.Wait()
-//	close(results)
-//	return childNodes, total
-//}
+func hexToKeybytes(hex []byte) []byte {
+	if hasTerm(hex) {
+		hex = hex[:len(hex)-1]
+	}
+	if len(hex)&1 != 0 {
+		panic("can't convert hex key of odd length")
+	}
+	key := make([]byte, (len(hex)+1)/2)
+	decodeNibbles(hex, key)
+	return key
+}
+
+// hasTerm returns whether a hex key has the terminator flag.
+func hasTerm(s []byte) bool {
+	return len(s) > 0 && s[len(s)-1] == 16
+}
+
+func decodeNibbles(nibbles []byte, bytes []byte) {
+	for bi, ni := 0, 0; ni < len(nibbles); bi, ni = bi+1, ni+2 {
+		bytes[bi] = nibbles[ni]<<4 | nibbles[ni+1]
+	}
+}
