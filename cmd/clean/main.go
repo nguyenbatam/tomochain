@@ -87,12 +87,19 @@ func main() {
 		fmt.Println("copyStateData lastestRoot", lastestRoot.Hex(), "err", err)
 		return
 	}
-	//err = copyStateData(*from, *to, backupRoot)
-	//if err != nil {
-	//	fmt.Println("copyStateData backupRoot", backupRoot.Hex(),"err",err)
-	//	return
-	//}
-
+	err = copyStateData(*from, *to, backupRoot)
+	if err != nil {
+		fmt.Println("copyStateData backupRoot", backupRoot.Hex(), "err", err)
+		return
+	}
+	toDB, err := ethdb.NewLDBDatabase(*to, eth.DefaultConfig.DatabaseCache, utils.MakeDatabaseHandles())
+	if err != nil {
+		return
+	}
+	fmt.Println(time.Now(), "compact")
+	toDB.LDB().CompactRange(util.Range{})
+	fmt.Println(time.Now(), "end")
+	toDB.Close()
 }
 func copyHeadData(from string, to string) error {
 	fmt.Println(time.Now(), "copyHeadData")
@@ -118,9 +125,6 @@ func copyHeadData(from string, to string) error {
 	//trieSyncKey   = []byte("TrieSync")
 	trie := core.GetTrieSyncProgress(fromDB)
 	core.WriteTrieSyncProgress(toDB, trie)
-	fmt.Println(time.Now(), "compact")
-	toDB.LDB().CompactRange(util.Range{})
-	fmt.Println(time.Now(), "end")
 	return nil
 }
 func copyBlockData(from string, to string, backupNumber uint64) error {
@@ -157,9 +161,6 @@ func copyBlockData(from string, to string, backupNumber uint64) error {
 		header = core.GetHeader(fromDB, block.ParentHash(), number-1)
 		number = header.Number.Uint64()
 	}
-	fmt.Println(time.Now(), "compact")
-	toDB.LDB().CompactRange(util.Range{})
-	fmt.Println(time.Now(), "end")
 	return nil
 }
 
@@ -193,9 +194,6 @@ func copyStateData(from, to string, root common.Hash) error {
 	if err != nil {
 		return err
 	}
-	fmt.Println(time.Now(), "compact")
-	toDB.LDB().CompactRange(util.Range{})
-	fmt.Println(time.Now(), "end")
 	return nil
 }
 func putToData(key []byte, value []byte) {
@@ -208,6 +206,7 @@ func putToData(key []byte, value []byte) {
 			fmt.Println("Error when put data to copy db")
 			panic(err)
 		}
+		batch.Reset()
 	}
 }
 func processNode(n trie.Node, path []byte, fromDB *leveldb.DB, checkAddr bool) error {
