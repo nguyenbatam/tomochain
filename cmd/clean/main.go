@@ -19,9 +19,9 @@ import (
 )
 
 var (
-	from   = flag.String("from", "/data/tomo/chaindata", "directory to TomoChain chaindata")
-	to     = flag.String("to", "/data/tomo/chaindata_copy", "directory to clean chaindata")
-
+	from       = flag.String("from", "/data/tomo/chaindata", "directory to TomoChain chaindata")
+	to         = flag.String("to", "/data/tomo/chaindata_copy", "directory to clean chaindata")
+	length     = flag.Uint64("length", 100, "minimum backup block data")
 	sercureKey = []byte("secure-key-") // preimagePrefix + hash -> preimage
 	nWorker    = runtime.NumCPU() / 2
 	finish     = int32(0)
@@ -29,6 +29,8 @@ var (
 	stateRoots = make(chan TrieRoot)
 	emptyRoot  = common.HexToHash("56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421")
 	emptyState = crypto.Keccak256Hash(nil)
+	batch      ethdb.Batch
+	count      = 0
 )
 
 type TrieRoot struct {
@@ -62,7 +64,7 @@ func main() {
 		if common.EmptyHash(lastestRoot) {
 			lastestRoot = root
 			lastestRootNumber = number
-		} else if root != lastestRoot {
+		} else if root != lastestRoot && number < lastestRootNumber-*length {
 			backupRoot = root
 			backupNumber = number
 			break
@@ -172,11 +174,13 @@ func copyStateData(from, to string, root common.Hash) error {
 	if err != nil {
 		return err
 	}
+	batch = toDB.NewBatch()
 	rootNode, valueDB, err := resolveHash(root[:], fromDB.LDB())
 	if err != nil {
 		return err
 	}
-	err = processNode(rootNode, nil, fromDB.LDB(), toDB.LDB(), true)
+
+	err = processNode(rootNode, nil, fromDB.LDB(), true)
 	if err != nil {
 		return err
 	}
@@ -184,9 +188,25 @@ func copyStateData(from, to string, root common.Hash) error {
 	if err != nil {
 		return err
 	}
+	err = batch.Write()
+	if err != nil {
+		return err
+	}
 	return nil
 }
-func processNode(n trie.Node, path []byte, fromDB *leveldb.DB, toDB *leveldb.DB, checkAddr bool) error {
+func putToData(key []byte, value []byte) {
+	batch.Put(key, value)
+	count++
+	if count%1000 == 0 {
+		err := batch.Write()
+		count = 0
+		if err != nil {
+			fmt.Println("Error when put data to copy db")
+			panic(err)
+		}
+	}
+}
+func processNode(n trie.Node, path []byte, fromDB *leveldb.DB, checkAddr bool) error {
 	switch node := n.(type) {
 	case *trie.FullNode:
 		// Full Node, move to the first non-nil child.
@@ -200,14 +220,11 @@ func processNode(n trie.Node, path []byte, fromDB *leveldb.DB, toDB *leveldb.DB,
 					childNode, valueDB, err = resolveHash(child.(trie.HashNode), fromDB)
 				}
 				if err == nil {
-					err = processNode(childNode, append(path, byte(i)), fromDB, toDB, checkAddr)
+					err = processNode(childNode, append(path, byte(i)), fromDB, checkAddr)
 					if err != nil {
 						return err
 					}
-					err = toDB.Put(child.(trie.HashNode), valueDB, nil)
-					if err != nil {
-						return err
-					}
+					putToData(child.(trie.HashNode), valueDB)
 				} else if err != nil {
 					_, ok := err.(*trie.MissingNodeError)
 					if !ok {
@@ -225,15 +242,12 @@ func processNode(n trie.Node, path []byte, fromDB *leveldb.DB, toDB *leveldb.DB,
 			childNode, valueDB, err = resolveHash(node.Val.(trie.HashNode), fromDB)
 		}
 		if err == nil {
-			err = processNode(childNode, append(path, node.Key...), fromDB, toDB, checkAddr)
+			err = processNode(childNode, append(path, node.Key...), fromDB, checkAddr)
 			if err != nil {
 				return err
 			}
 			if _, ok := node.Val.(trie.HashNode); ok {
-				err := toDB.Put(node.Val.(trie.HashNode), valueDB, nil)
-				if err != nil {
-					return err
-				}
+				putToData(node.Val.(trie.HashNode), valueDB)
 			}
 		} else if err != nil {
 			_, ok := err.(*trie.MissingNodeError)
@@ -254,14 +268,11 @@ func processNode(n trie.Node, path []byte, fromDB *leveldb.DB, toDB *leveldb.DB,
 				if err != nil {
 					return err
 				}
-				err = processNode(newNode, nil, fromDB, toDB, false)
+				err = processNode(newNode, nil, fromDB, false)
 				if err != nil {
 					return err
 				}
-				err = toDB.Put(data.Root[:], valueDB, nil)
-				if err != nil {
-					return err
-				}
+				putToData(data.Root[:], valueDB)
 			}
 		}
 	}
