@@ -92,6 +92,7 @@ func main() {
 	//	fmt.Println("copyStateData backupRoot", backupRoot.Hex(),"err",err)
 	//	return
 	//}
+
 }
 func copyHeadData(from string, to string) error {
 	fmt.Println(time.Now(), "copyHeadData")
@@ -192,6 +193,9 @@ func copyStateData(from, to string, root common.Hash) error {
 	if err != nil {
 		return err
 	}
+	fmt.Println(time.Now(), "compact")
+	toDB.LDB().CompactRange(util.Range{})
+	fmt.Println(time.Now(), "end")
 	return nil
 }
 func putToData(key []byte, value []byte) {
