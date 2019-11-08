@@ -46,13 +46,24 @@ func main() {
 	head := core.GetHeadBlockHash(db)
 	header := core.GetHeader(db, head, core.GetBlockNumber(db, head))
 	mapNonces := map[common.Address]uint64{}
-	for number := *from; number <= header.Number.Uint64(); number++ {
-		if number%1000 == 0 {
+	number := header.Number.Uint64() - 200
+	before := uint64(0)
+	for number <= header.Number.Uint64() {
+		if number > before+1000 {
 			fmt.Println(time.Now(), number)
+			before = number
 		}
-		hash := core.GetCanonicalHash(db, number)
-		body := core.GetBody(db, hash, number)
-		length := len(body.Transactions)
+		txs := types.Transactions{}
+		for i := number; i <= number+20; i++ {
+			hash := core.GetCanonicalHash(db, i)
+			if common.EmptyHash(hash) {
+				break
+			}
+			body := core.GetBody(db, hash, i)
+			txs = append(txs, body.Transactions...)
+		}
+		number = number + 21
+		length := len(txs)
 		froms := make([]common.Address, length)
 		wg := sync.WaitGroup{}
 		wg.Add(length)
@@ -61,10 +72,10 @@ func main() {
 				from, _ := signer.Sender(tx)
 				froms[index] = from
 				wg.Done()
-			}(i, body.Transactions[i])
+			}(i, txs[i])
 		}
 		wg.Wait()
-		for i, tx := range body.Transactions {
+		for i, tx := range txs {
 			from := froms[i]
 			oldNonce := mapNonces[from]
 			mapNonces[from] = oldNonce + 1
