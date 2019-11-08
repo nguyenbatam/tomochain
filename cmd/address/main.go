@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum/go-ethereum/ethdb"
 	lru "github.com/hashicorp/golang-lru"
 	"os"
+	"time"
 )
 
 var (
@@ -37,6 +38,9 @@ func main() {
 	header := core.GetHeader(db, head, core.GetBlockNumber(db, head))
 	mapNonces := map[common.Address]uint64{}
 	for number := uint64(0); number <= header.Number.Uint64(); number++ {
+		if number%10000 == 0 {
+			fmt.Println(time.Now(), number)
+		}
 		hash := core.GetCanonicalHash(db, number)
 		body := core.GetBody(db, hash, number)
 		for _, tx := range body.Transactions {
@@ -45,22 +49,22 @@ func main() {
 			mapNonces[from] = oldNonce + 1
 			if tx.To() == nil {
 				smc := crypto.CreateAddress(from, tx.Nonce())
-				write(f,smc.Hex())
+				write(f, smc.Hex())
 			} else {
 				if tx.To().Hex() != common.BlockSigners {
-					write(f,tx.To().Hex())
+					write(f, tx.To().Hex())
 				}
 			}
-			write(f,from.Hex())
+			write(f, from.Hex())
 		}
 	}
 	f.Close()
 	db.Close()
 }
-func write(f *os.File, addr string)  {
+func write(f *os.File, addr string) {
 	if cache.Contains(addr) {
 		return
 	}
 	f.WriteString(addr + "\n")
-	cache.Add(addr,true)
+	cache.Add(addr, true)
 }
