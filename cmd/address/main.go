@@ -46,7 +46,7 @@ func main() {
 	head := core.GetHeadBlockHash(db)
 	header := core.GetHeader(db, head, core.GetBlockNumber(db, head))
 	mapNonces := map[common.Address]uint64{}
-	number := header.Number.Uint64() - 200
+	number := *from
 	before := uint64(0)
 	for number <= header.Number.Uint64() {
 		if number > before+1000 {
