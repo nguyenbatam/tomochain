@@ -60,11 +60,15 @@ func main() {
 	lastestRoot := common.Hash{}
 	lastestRootNumber := uint64(0)
 	backupRoot := common.Hash{}
-	backupNumber := number
+	backupNumber := uint64(0)
 	for number >= 1 {
 		number = number - 1
 		hash := core.GetCanonicalHash(fromDB, number)
 		root := core.GetHeader(fromDB, hash, number).Root
+		_, err = loadSnapshot(fromDB, hash)
+		if err == nil {
+			backupNumber = number
+		}
 		_, err := trie.NewSecure(root, tridb, 0)
 		if err != nil {
 			continue
@@ -74,13 +78,9 @@ func main() {
 			lastestRootNumber = number
 		} else if common.EmptyHash(backupRoot) && root != lastestRoot && number < lastestRootNumber-*length {
 			backupRoot = root
-		} else if number < lastestRootNumber-lengthBackupData {
-			_, err := loadSnapshot(fromDB, hash)
-			fmt.Println("number",number,"hash",hash.Hex(),"err",err)
-			if err == nil {
-				backupNumber = number
-				break
-			}
+		}
+		if backupNumber > 0 && !common.EmptyHash(lastestRoot) && !common.EmptyHash(backupRoot) {
+			break
 		}
 	}
 	fmt.Println("lastestRoot", lastestRoot.Hex(), "lastestRootNumber", lastestRootNumber, "backupRoot", backupRoot.Hex(), "backupNumber", backupNumber, "currentNumber", header.Number.Uint64())
@@ -155,20 +155,20 @@ func copyBlockData(backupNumber uint64) error {
 		//numSuffix           = []byte("n") // headerPrefix + num (uint64 big endian) + numSuffix -> hash
 		hash = core.GetCanonicalHash(fromDB, number)
 		core.WriteCanonicalHash(toDB, hash, number)
+		snap, err := loadSnapshot(fromDB, hash)
+		if err == nil {
+			fmt.Println("loaded snap shot at hash", hash.Hex(), "number", number)
+			err = storeSnapshot(snap, toDB)
+			if err != nil {
+				fmt.Println("Fail save snap shot at hash", hash.Hex(), "number", number)
+			}
+		}
 		if number == 0 {
 			break
 		}
 		header = core.GetHeader(fromDB, block.ParentHash(), number-1)
 		number = header.Number.Uint64()
 
-		snap, err := loadSnapshot(fromDB, hash)
-		if err == nil {
-			fmt.Println("load snap shot at hash", hash.Hex())
-			err = storeSnapshot(snap, toDB)
-			if err != nil {
-				fmt.Println("Fail save snap shot at hash", hash.Hex())
-			}
-		}
 	}
 	return nil
 }
