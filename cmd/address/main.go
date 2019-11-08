@@ -48,6 +48,14 @@ func main() {
 	mapNonces := map[common.Address]uint64{}
 	number := *from
 	before := uint64(0)
+	go func() {
+		for addr := range addrChan {
+			if !cache.Contains(addr) {
+				cache.Add(addr, true)
+				f.WriteString(addr + "\n")
+			}
+		}
+	}()
 	for number <= header.Number.Uint64() {
 		if number > before+1000 {
 			fmt.Println(time.Now(), number)
@@ -101,14 +109,8 @@ func main() {
 			}()
 		}
 	}
-	go func() {
-		for addr := range addrChan {
-			if !cache.Contains(addr) {
-				cache.Add(addr, true)
-				f.WriteString(addr + "\n")
-			}
-		}
-	}()
+	time.Sleep(10 * time.Second)
+	close(addrChan)
 	f.Close()
 	db.Close()
 }
