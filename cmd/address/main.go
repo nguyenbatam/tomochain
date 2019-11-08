@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"flag"
 	"fmt"
 	"github.com/ethereum/go-ethereum/cmd/utils"
@@ -14,7 +13,6 @@ import (
 	lru "github.com/hashicorp/golang-lru"
 	"math/big"
 	"os"
-	"runtime"
 	"sync"
 	"time"
 )
@@ -23,11 +21,8 @@ var (
 	dir          = flag.String("dir", "/data/tomo/chaindata", "directory to TomoChain chaindata")
 	address      = flag.String("address", "/data/tomo/address.txt", "output list address in block")
 	from         = flag.Uint64("from", 0, "from block number")
-	cache, _     = lru.NewARC(1000000)
-	batch        *bytes.Buffer
-	lengthBuffer = 1000000
+	cache, _     = lru.NewARC(10000)
 	addrChan     chan string
-	nWorker      = runtime.NumCPU() / 2
 )
 
 func main() {
@@ -41,7 +36,6 @@ func main() {
 		fmt.Println(err)
 	}
 	addrChan = make(chan string)
-	batch = bytes.NewBuffer(make([]byte, 0, lengthBuffer))
 	signer := types.NewEIP155Signer(big.NewInt(88))
 	head := core.GetHeadBlockHash(db)
 	header := core.GetHeader(db, head, core.GetBlockNumber(db, head))
