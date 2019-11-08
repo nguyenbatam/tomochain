@@ -111,6 +111,7 @@ func main() {
 		}
 	}
 	time.Sleep(10 * time.Second)
+	fmt.Println("close addrChan")
 	close(addrChan)
 	f.Close()
 	db.Close()
