@@ -27,11 +27,7 @@ func main() {
 	if err != nil {
 		fmt.Println(err)
 	}
-	err = os.Remove(*address)
-	if err != nil {
-		fmt.Println(err)
-	}
-	f, err := os.Create(*address)
+	f, err := os.OpenFile(*address, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
 	if err != nil {
 		fmt.Println(err)
 	}
