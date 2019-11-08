@@ -22,7 +22,6 @@ var (
 	from    = flag.String("from", "/data/tomo/chaindata", "directory to TomoChain chaindata")
 	to      = flag.String("to", "/data/tomo/chaindata_copy", "directory to clean chaindata")
 	length  = flag.Uint64("length", 100, "minimum backup block data")
-	address = flag.String("address", "/data/tomo/adress.txt", "list address in state db")
 
 	sercureKey = []byte("secure-key-") // preimagePrefix + hash -> preimage
 	nWorker    = runtime.NumCPU() / 2
@@ -40,11 +39,13 @@ var (
 func main() {
 	flag.Parse()
 	fromDB, err = ethdb.NewLDBDatabase(*from, eth.DefaultConfig.DatabaseCache, utils.MakeDatabaseHandles())
+	defer fromDB.Close()
 	if err != nil {
 		fmt.Println("fromDB", err)
 		return
 	}
 	toDB, err = ethdb.NewLDBDatabase(*to, eth.DefaultConfig.DatabaseCache, utils.MakeDatabaseHandles())
+	defer toDB.Close()
 	if err != nil {
 		fmt.Println("toDB", err)
 		return
@@ -95,12 +96,10 @@ func main() {
 		fmt.Println("copyStateData backupRoot", backupRoot.Hex(), "err", err)
 		return
 	}
-
-	fromDB.Close()
 	fmt.Println(time.Now(), "compact")
 	toDB.LDB().CompactRange(util.Range{})
 	fmt.Println(time.Now(), "end")
-	toDB.Close()
+
 }
 func copyHeadData() error {
 	fmt.Println(time.Now(), "copyHeadData")
@@ -177,7 +176,7 @@ func copyStateData(root common.Hash) error {
 	}
 	return nil
 }
-func putToData(key []byte, value []byte) {
+func putToDataCopy(key []byte, value []byte) {
 	batch.Put(key, value)
 	count++
 	if count%1000 == 0 {
@@ -219,7 +218,7 @@ func processNode(n trie.Node, path []byte, checkAddr bool) error {
 					if err != nil {
 						return err
 					}
-					putToData(keyDB, valueDB)
+					putToDataCopy(keyDB, valueDB)
 				} else if err != nil {
 					_, ok := err.(*trie.MissingNodeError)
 					if !ok {
@@ -253,7 +252,7 @@ func processNode(n trie.Node, path []byte, checkAddr bool) error {
 				return err
 			}
 			if keyDB != nil {
-				putToData(node.Val.(trie.HashNode), valueDB)
+				putToDataCopy(node.Val.(trie.HashNode), valueDB)
 			}
 		} else if err != nil {
 			_, ok := err.(*trie.MissingNodeError)
@@ -285,9 +284,16 @@ func processNode(n trie.Node, path []byte, checkAddr bool) error {
 				if err != nil {
 					return err
 				}
-				putToData(data.Root[:], valueDB)
+				putToDataCopy(data.Root[:], valueDB)
 			}
 		}
+		keyDB:=append(sercureKey,hexToKeybytes(path)...)
+		valueDB,err:=fromDB.Get(keyDB)
+		if err != nil {
+			fmt.Println("Not found key ",common.Bytes2Hex(keyDB))
+			return err
+		}
+		putToDataCopy(keyDB,valueDB)
 	}
 	return nil
 }
