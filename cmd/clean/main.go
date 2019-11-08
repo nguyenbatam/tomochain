@@ -357,7 +357,6 @@ func loadSnapshot(db *ethdb.LDBDatabase, hash common.Hash) (*posv.Snapshot, erro
 	if err := json.Unmarshal(blob, snap); err != nil {
 		return nil, err
 	}
-	fmt.Println("loadSnapshot sucess","hash",hash.Hex(),len(snap.Recents),len(snap.Signers),len(snap.Tally),len(snap.Votes))
 	return snap, nil
 }
 
