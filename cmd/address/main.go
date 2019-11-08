@@ -1,24 +1,33 @@
 package main
 
 import (
+	"bytes"
 	"flag"
 	"fmt"
 	"github.com/ethereum/go-ethereum/cmd/utils"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/eth"
 	"github.com/ethereum/go-ethereum/ethdb"
 	lru "github.com/hashicorp/golang-lru"
+	"math/big"
 	"os"
+	"runtime"
+	"sync"
 	"time"
 )
 
 var (
-	dir      = flag.String("dir", "/data/tomo/chaindata", "directory to TomoChain chaindata")
-	address  = flag.String("address", "/data/tomo/address.txt", "output list address in block")
-	from     = flag.Uint64("from", 0, "from block number")
-	cache, _ = lru.NewARC(1000000)
+	dir          = flag.String("dir", "/data/tomo/chaindata", "directory to TomoChain chaindata")
+	address      = flag.String("address", "/data/tomo/address.txt", "output list address in block")
+	from         = flag.Uint64("from", 0, "from block number")
+	cache, _     = lru.NewARC(1000000)
+	batch        *bytes.Buffer
+	lengthBuffer = 1000000
+	addrChan     chan string
+	nWorker      = runtime.NumCPU() / 2
 )
 
 func main() {
@@ -31,6 +40,9 @@ func main() {
 	if err != nil {
 		fmt.Println(err)
 	}
+	addrChan = make(chan string)
+	batch = bytes.NewBuffer(make([]byte, 0, lengthBuffer))
+	signer := types.NewEIP155Signer(big.NewInt(88))
 	head := core.GetHeadBlockHash(db)
 	header := core.GetHeader(db, head, core.GetBlockNumber(db, head))
 	mapNonces := map[common.Address]uint64{}
@@ -40,28 +52,47 @@ func main() {
 		}
 		hash := core.GetCanonicalHash(db, number)
 		body := core.GetBody(db, hash, number)
-		for _, tx := range body.Transactions {
-			from := *tx.From();
+		length := len(body.Transactions)
+		froms := make([]common.Address, length)
+		wg := sync.WaitGroup{}
+		wg.Add(length)
+		for i := 0; i < length; i++ {
+			go func(index int, tx *types.Transaction) {
+				from, _ := signer.Sender(tx)
+				froms[index] = from
+				wg.Done()
+			}(i, body.Transactions[i])
+		}
+		wg.Wait()
+		for i, tx := range body.Transactions {
+			from := froms[i]
 			oldNonce := mapNonces[from]
 			mapNonces[from] = oldNonce + 1
 			if tx.To() == nil {
 				smc := crypto.CreateAddress(from, tx.Nonce())
-				write(f, smc.Hex())
+				go func() {
+					addrChan <- smc.Hex()
+				}()
 			} else {
 				if tx.To().Hex() != common.BlockSigners {
-					write(f, tx.To().Hex())
+					go func() {
+						addrChan <- tx.To().Hex()
+					}()
 				}
 			}
-			write(f, from.Hex())
+			go func() {
+				addrChan <- from.Hex()
+			}()
 		}
 	}
+	go func() {
+		for addr := range addrChan {
+			if !cache.Contains(addr) {
+				cache.Add(addr, true)
+				f.WriteString(addr + "\n")
+			}
+		}
+	}()
 	f.Close()
 	db.Close()
-}
-func write(f *os.File, addr string) {
-	if cache.Contains(addr) {
-		return
-	}
-	f.WriteString(addr + "\n")
-	cache.Add(addr, true)
 }
