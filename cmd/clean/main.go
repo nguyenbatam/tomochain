@@ -76,12 +76,21 @@ func main() {
 		if common.EmptyHash(lastestRoot) {
 			lastestRoot = root
 			lastestRootNumber = number
+			if number < backupNumber {
+				backupNumber = number
+			}
 		} else if common.EmptyHash(backupRoot) && root != lastestRoot && number < lastestRootNumber-*length {
 			backupRoot = root
+			if number < backupNumber {
+				backupNumber = number
+			}
 		}
 		if backupNumber > 0 && !common.EmptyHash(lastestRoot) && !common.EmptyHash(backupRoot) {
 			break
 		}
+	}
+	if lastestRootNumber-lengthBackupData < backupNumber {
+		backupNumber = lastestRootNumber - lengthBackupData
 	}
 	fmt.Println("lastestRoot", lastestRoot.Hex(), "lastestRootNumber", lastestRootNumber, "backupRoot", backupRoot.Hex(), "backupNumber", backupNumber, "currentNumber", header.Number.Uint64())
 	err = copyHeadData()
