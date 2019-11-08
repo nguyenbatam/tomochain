@@ -426,8 +426,6 @@ func (bc *BlockChain) Reset() error {
 // ResetWithGenesisBlock purges the entire blockchain, restoring it to the
 // specified genesis state.
 func (bc *BlockChain) ResetWithGenesisBlock(genesis *types.Block) error {
-	log.Debug("ResetWithGenesisBlock","genesis",genesis.Hash(),"genesis",genesis.Number(),"genesis",genesis)
-	log.Debug(log.GetLineDetail())
 	// Dump the entire block chain and purge the caches
 	if err := bc.SetHead(0); err != nil {
 		return err
@@ -610,8 +608,6 @@ func (bc *BlockChain) GetBlock(hash common.Hash, number uint64) *types.Block {
 	if block == nil {
 		return nil
 	}
-	log.Debug("GetBlock","hash",hash.Hex(),"number",number)
-	log.Debug(log.GetLineDetail())
 	// Cache the found block for next time and return
 	bc.blockCache.Add(block.Hash(), block)
 	return block

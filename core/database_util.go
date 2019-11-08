@@ -120,8 +120,6 @@ func GetBlockNumber(db DatabaseReader, hash common.Hash) uint64 {
 // light synchronization mechanism.
 func GetHeadHeaderHash(db DatabaseReader) common.Hash {
 	data, _ := db.Get(headHeaderKey)
-	log.Debug("GetHeadHeaderHash","data",common.Bytes2Hex(data))
-	log.Debug(log.GetLineDetail())
 	if len(data) == 0 {
 		return common.Hash{}
 	}
@@ -131,8 +129,6 @@ func GetHeadHeaderHash(db DatabaseReader) common.Hash {
 // GetHeadBlockHash retrieves the hash of the current canonical head block.
 func GetHeadBlockHash(db DatabaseReader) common.Hash {
 	data, _ := db.Get(headBlockKey)
-	log.Debug("GetHeadBlockHash","data",common.Bytes2Hex(data))
-	log.Debug(log.GetLineDetail())
 	if len(data) == 0 {
 		return common.Hash{}
 	}
@@ -367,8 +363,6 @@ func WriteCanonicalHash(db ethdb.Putter, hash common.Hash, number uint64) error 
 
 // WriteHeadHeaderHash stores the head header's hash.
 func WriteHeadHeaderHash(db ethdb.Putter, hash common.Hash) error {
-	log.Debug("WriteHeadHeaderHash","hash",hash.Hex())
-	log.Debug(log.GetLineDetail())
 	if err := db.Put(headHeaderKey, hash.Bytes()); err != nil {
 		log.Crit("Failed to store last header's hash", "err", err)
 	}
@@ -377,8 +371,6 @@ func WriteHeadHeaderHash(db ethdb.Putter, hash common.Hash) error {
 
 // WriteHeadBlockHash stores the head block's hash.
 func WriteHeadBlockHash(db ethdb.Putter, hash common.Hash) error {
-	log.Debug("WriteHeadBlockHash","hash",hash.Hex())
-	log.Debug(log.GetLineDetail())
 	if err := db.Put(headBlockKey, hash.Bytes()); err != nil {
 		log.Crit("Failed to store last block's hash", "err", err)
 	}
@@ -455,8 +447,6 @@ func WriteTd(db ethdb.Putter, hash common.Hash, number uint64, td *big.Int) erro
 
 // WriteBlock serializes a block into the database, header and body separately.
 func WriteBlock(db ethdb.Putter, block *types.Block) error {
-	log.Debug("WriteBlock","hash",block.Hash(),"number",block.Number(),"block",block)
-	log.Debug(log.GetLineDetail())
 	// Store the body first to retain database consistency
 	if err := WriteBody(db, block.Hash(), block.NumberU64(), block.Body()); err != nil {
 		return err

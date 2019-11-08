@@ -1,10 +1,12 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
 	"github.com/ethereum/go-ethereum/cmd/utils"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/consensus/posv"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -19,21 +21,22 @@ import (
 )
 
 var (
-	from   = flag.String("from", "/data/tomo/chaindata", "directory to TomoChain chaindata")
+	from   = flag.String("from", "/data/tomo/chaindata_bak", "directory to TomoChain chaindata")
 	to     = flag.String("to", "/data/tomo/chaindata_copy", "directory to clean chaindata")
-	length = flag.Uint64("length", 100, "minimum backup block data")
+	length = flag.Uint64("length", 100, "minimum length backup state trie data")
 
-	sercureKey = []byte("secure-key-") // preimagePrefix + hash -> preimage
-	nWorker    = runtime.NumCPU() / 2
-	finish     = int32(0)
-	running    = true
-	emptyRoot  = common.HexToHash("56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421")
-	emptyState = crypto.Keccak256Hash(nil)
-	batch      ethdb.Batch
-	count      = 0
-	fromDB     *ethdb.LDBDatabase
-	toDB       *ethdb.LDBDatabase
-	err        error
+	sercureKey       = []byte("secure-key-") // preimagePrefix + hash -> preimage
+	nWorker          = runtime.NumCPU() / 2
+	finish           = int32(0)
+	running          = true
+	emptyRoot        = common.HexToHash("56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421")
+	emptyState       = crypto.Keccak256Hash(nil)
+	batch            ethdb.Batch
+	count            = 0
+	fromDB           *ethdb.LDBDatabase
+	toDB             *ethdb.LDBDatabase
+	err              error
+	lengthBackupData = uint64(2000)
 )
 
 func main() {
@@ -69,10 +72,15 @@ func main() {
 		if common.EmptyHash(lastestRoot) {
 			lastestRoot = root
 			lastestRootNumber = number
-		} else if root != lastestRoot && number < lastestRootNumber-*length {
+		} else if common.EmptyHash(backupRoot) && root != lastestRoot && number < lastestRootNumber-*length {
 			backupRoot = root
-			backupNumber = number
-			break
+		} else if number < lastestRootNumber-lengthBackupData {
+			_, err := loadSnapshot(fromDB, hash)
+			fmt.Println("number",number,"hash",hash.Hex(),"err",err)
+			if err == nil {
+				backupNumber = number
+				break
+			}
 		}
 	}
 	fmt.Println("lastestRoot", lastestRoot.Hex(), "lastestRootNumber", lastestRootNumber, "backupRoot", backupRoot.Hex(), "backupNumber", backupNumber, "currentNumber", header.Number.Uint64())
@@ -152,6 +160,15 @@ func copyBlockData(backupNumber uint64) error {
 		}
 		header = core.GetHeader(fromDB, block.ParentHash(), number-1)
 		number = header.Number.Uint64()
+
+		snap, err := loadSnapshot(fromDB, hash)
+		if err == nil {
+			fmt.Println("load snap shot at hash", hash.Hex())
+			err = storeSnapshot(snap, toDB)
+			if err != nil {
+				fmt.Println("Fail save snap shot at hash", hash.Hex())
+			}
+		}
 	}
 	return nil
 }
@@ -329,4 +346,25 @@ func decodeNibbles(nibbles []byte, bytes []byte) {
 	for bi, ni := 0, 0; ni < len(nibbles); bi, ni = bi+1, ni+2 {
 		bytes[bi] = nibbles[ni]<<4 | nibbles[ni+1]
 	}
+}
+
+func loadSnapshot(db *ethdb.LDBDatabase, hash common.Hash) (*posv.Snapshot, error) {
+	blob, err := db.Get(append([]byte("posv-"), hash[:]...))
+	if err != nil {
+		return nil, err
+	}
+	snap := new(posv.Snapshot)
+	if err := json.Unmarshal(blob, snap); err != nil {
+		return nil, err
+	}
+	return snap, nil
+}
+
+// store inserts the snapshot into the database.
+func storeSnapshot(snap *posv.Snapshot, db *ethdb.LDBDatabase) error {
+	blob, err := json.Marshal(snap)
+	if err != nil {
+		return err
+	}
+	return db.Put(append([]byte("posv-"), snap.Hash[:]...), blob)
 }
