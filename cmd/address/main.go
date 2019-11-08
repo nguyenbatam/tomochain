@@ -100,6 +100,9 @@ func main() {
 			} else {
 				if tx.To().Hex() != common.BlockSigners {
 					go func() {
+						fmt.Println(addrChan,tx)
+						fmt.Println(tx.To())
+						fmt.Println(tx.To().Hex())
 						addrChan <- tx.To().Hex()
 					}()
 				}
