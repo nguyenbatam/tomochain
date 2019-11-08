@@ -19,36 +19,40 @@ import (
 )
 
 var (
-	from       = flag.String("from", "/data/tomo/chaindata", "directory to TomoChain chaindata")
-	to         = flag.String("to", "/data/tomo/chaindata_copy", "directory to clean chaindata")
-	length     = flag.Uint64("length", 100, "minimum backup block data")
+	from    = flag.String("from", "/data/tomo/chaindata", "directory to TomoChain chaindata")
+	to      = flag.String("to", "/data/tomo/chaindata_copy", "directory to clean chaindata")
+	length  = flag.Uint64("length", 100, "minimum backup block data")
+	address = flag.String("address", "/data/tomo/adress.txt", "list address in state db")
+
 	sercureKey = []byte("secure-key-") // preimagePrefix + hash -> preimage
 	nWorker    = runtime.NumCPU() / 2
 	finish     = int32(0)
 	running    = true
-	stateRoots = make(chan TrieRoot)
 	emptyRoot  = common.HexToHash("56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421")
 	emptyState = crypto.Keccak256Hash(nil)
 	batch      ethdb.Batch
 	count      = 0
+	fromDB     *ethdb.LDBDatabase
+	toDB       *ethdb.LDBDatabase
+	err error
 )
-
-type TrieRoot struct {
-	trie   *trie.SecureTrie
-	number uint64
-}
-type StateNode struct {
-	node trie.Node
-	path []byte
-}
 
 func main() {
 	flag.Parse()
-	fromDB, _ := ethdb.NewLDBDatabase(*from, eth.DefaultConfig.DatabaseCache, utils.MakeDatabaseHandles())
+	fromDB, err = ethdb.NewLDBDatabase(*from, eth.DefaultConfig.DatabaseCache, utils.MakeDatabaseHandles())
+	if err != nil {
+		fmt.Println("fromDB", err)
+		return
+	}
+	toDB, err = ethdb.NewLDBDatabase(*to, eth.DefaultConfig.DatabaseCache, utils.MakeDatabaseHandles())
+	if err != nil {
+		fmt.Println("toDB", err)
+		return
+	}
 	tridb := trie.NewDatabase(fromDB)
 	head := core.GetHeadBlockHash(fromDB)
 	header := core.GetHeader(fromDB, head, core.GetBlockNumber(fromDB, head))
-	number := header.Number.Uint64()
+	number := header.Number.Uint64() + 1
 	lastestRoot := common.Hash{}
 	lastestRootNumber := uint64(0)
 	backupRoot := common.Hash{}
@@ -71,48 +75,35 @@ func main() {
 		}
 	}
 	fmt.Println("lastestRoot", lastestRoot.Hex(), "lastestRootNumber", lastestRootNumber, "backupRoot", backupRoot.Hex(), "backupNumber", backupNumber, "currentNumber", header.Number.Uint64())
-	fromDB.Close()
-	err := copyHeadData(*from, *to)
+	err = copyHeadData()
 	if err != nil {
 		fmt.Println("copyHeadData", err)
 		return
 	}
-	err = copyBlockData(*from, *to, backupNumber)
+	err = copyBlockData(backupNumber)
 	if err != nil {
 		fmt.Println("copyBlockData", err)
 		return
 	}
-	err = copyStateData(*from, *to, lastestRoot)
+	err = copyStateData(lastestRoot)
 	if err != nil {
 		fmt.Println("copyStateData lastestRoot", lastestRoot.Hex(), "err", err)
 		return
 	}
-	err = copyStateData(*from, *to, backupRoot)
+	err = copyStateData(backupRoot)
 	if err != nil {
 		fmt.Println("copyStateData backupRoot", backupRoot.Hex(), "err", err)
 		return
 	}
-	toDB, err := ethdb.NewLDBDatabase(*to, eth.DefaultConfig.DatabaseCache, utils.MakeDatabaseHandles())
-	if err != nil {
-		return
-	}
+
+	fromDB.Close()
 	fmt.Println(time.Now(), "compact")
 	toDB.LDB().CompactRange(util.Range{})
 	fmt.Println(time.Now(), "end")
 	toDB.Close()
 }
-func copyHeadData(from string, to string) error {
+func copyHeadData() error {
 	fmt.Println(time.Now(), "copyHeadData")
-	fromDB, err := ethdb.NewLDBDatabase(from, eth.DefaultConfig.DatabaseCache, utils.MakeDatabaseHandles())
-	defer fromDB.Close()
-	if err != nil {
-		return err
-	}
-	toDB, err := ethdb.NewLDBDatabase(to, eth.DefaultConfig.DatabaseCache, utils.MakeDatabaseHandles())
-	defer toDB.Close()
-	if err != nil {
-		return err
-	}
 	//headHeaderKey = []byte("LastHeader")
 	hash := core.GetHeadHeaderHash(fromDB)
 	core.WriteHeadHeaderHash(toDB, hash)
@@ -125,20 +116,20 @@ func copyHeadData(from string, to string) error {
 	//trieSyncKey   = []byte("TrieSync")
 	trie := core.GetTrieSyncProgress(fromDB)
 	core.WriteTrieSyncProgress(toDB, trie)
+	//genesis
+	genesiHash := core.GetCanonicalHash(fromDB, 0)
+	genesisBlock := core.GetBlock(fromDB, genesiHash, 0)
+	core.WriteBlock(toDB, genesisBlock)
+	//configPrefix   = []byte("ethereum-config-") // config prefix for the db
+	chainConfig, err := core.GetChainConfig(fromDB, genesiHash)
+	if err != nil {
+		return err
+	}
+	core.WriteChainConfig(toDB, genesiHash, chainConfig)
 	return nil
 }
-func copyBlockData(from string, to string, backupNumber uint64) error {
+func copyBlockData(backupNumber uint64) error {
 	fmt.Println(time.Now(), "copyBlockData", "backupNumber", backupNumber)
-	fromDB, err := ethdb.NewLDBDatabase(from, eth.DefaultConfig.DatabaseCache, utils.MakeDatabaseHandles())
-	defer fromDB.Close()
-	if err != nil {
-		return err
-	}
-	toDB, err := ethdb.NewLDBDatabase(to, eth.DefaultConfig.DatabaseCache, utils.MakeDatabaseHandles())
-	defer toDB.Close()
-	if err != nil {
-		return err
-	}
 	head := core.GetHeadBlockHash(fromDB)
 	header := core.GetHeader(fromDB, head, core.GetBlockNumber(fromDB, head))
 	number := header.Number.Uint64()
@@ -164,25 +155,15 @@ func copyBlockData(from string, to string, backupNumber uint64) error {
 	return nil
 }
 
-func copyStateData(from, to string, root common.Hash) error {
+func copyStateData(root common.Hash) error {
 	fmt.Println(time.Now(), "run copy state data ", "root", root.Hex())
-	fromDB, err := ethdb.NewLDBDatabase(from, eth.DefaultConfig.DatabaseCache, utils.MakeDatabaseHandles())
-	defer fromDB.Close()
-	if err != nil {
-		return err
-	}
-	toDB, err := ethdb.NewLDBDatabase(to, eth.DefaultConfig.DatabaseCache, utils.MakeDatabaseHandles())
-	defer toDB.Close()
-	if err != nil {
-		return err
-	}
 	batch = toDB.NewBatch()
 	rootNode, valueDB, err := resolveHash(root[:], fromDB.LDB())
 	if err != nil {
 		return err
 	}
 
-	err = processNode(rootNode, nil, fromDB.LDB(), true)
+	err = processNode(rootNode, nil, true)
 	if err != nil {
 		return err
 	}
@@ -209,7 +190,7 @@ func putToData(key []byte, value []byte) {
 		batch.Reset()
 	}
 }
-func processNode(n trie.Node, path []byte, fromDB *leveldb.DB, checkAddr bool) error {
+func processNode(n trie.Node, path []byte, checkAddr bool) error {
 	switch node := n.(type) {
 	case *trie.FullNode:
 		// Full Node, move to the first non-nil child.
@@ -219,15 +200,26 @@ func processNode(n trie.Node, path []byte, fromDB *leveldb.DB, checkAddr bool) e
 				childNode := child
 				var err error = nil
 				var valueDB []byte
+				var keyDB []byte
 				if _, ok := child.(trie.HashNode); ok {
-					childNode, valueDB, err = resolveHash(child.(trie.HashNode), fromDB)
+					keyDB = child.(trie.HashNode)
+					childNode, valueDB, err = resolveHash(keyDB, fromDB.LDB())
 				}
 				if err == nil {
-					err = processNode(childNode, append(path, byte(i)), fromDB, checkAddr)
+					if keyDB != nil {
+						exist, err := toDB.LDB().Has(keyDB, nil)
+						if err != nil {
+							return err
+						}
+						if exist {
+							return nil
+						}
+					}
+					err = processNode(childNode, append(path, byte(i)), checkAddr)
 					if err != nil {
 						return err
 					}
-					putToData(child.(trie.HashNode), valueDB)
+					putToData(keyDB, valueDB)
 				} else if err != nil {
 					_, ok := err.(*trie.MissingNodeError)
 					if !ok {
@@ -241,15 +233,26 @@ func processNode(n trie.Node, path []byte, fromDB *leveldb.DB, checkAddr bool) e
 		childNode := node.Val
 		var err error = nil
 		var valueDB []byte
+		var keyDB []byte
 		if _, ok := node.Val.(trie.HashNode); ok {
-			childNode, valueDB, err = resolveHash(node.Val.(trie.HashNode), fromDB)
+			keyDB = node.Val.(trie.HashNode)
+			childNode, valueDB, err = resolveHash(keyDB, fromDB.LDB())
 		}
 		if err == nil {
-			err = processNode(childNode, append(path, node.Key...), fromDB, checkAddr)
+			if keyDB != nil {
+				exist, err := toDB.LDB().Has(keyDB, nil)
+				if err != nil {
+					return err
+				}
+				if exist {
+					return nil
+				}
+			}
+			err = processNode(childNode, append(path, node.Key...), checkAddr)
 			if err != nil {
 				return err
 			}
-			if _, ok := node.Val.(trie.HashNode); ok {
+			if keyDB != nil {
 				putToData(node.Val.(trie.HashNode), valueDB)
 			}
 		} else if err != nil {
@@ -267,11 +270,18 @@ func processNode(n trie.Node, path []byte, fromDB *leveldb.DB, checkAddr bool) e
 			}
 			if common.EmptyHash(data.Root) && data.Root != emptyRoot && data.Root != emptyState {
 				fmt.Println("Try copy data in a smart contract ")
-				newNode, valueDB, err := resolveHash(data.Root[:], fromDB)
+				exist, err := toDB.LDB().Has(data.Root[:], nil)
 				if err != nil {
 					return err
 				}
-				err = processNode(newNode, nil, fromDB, false)
+				if exist {
+					return nil
+				}
+				newNode, valueDB, err := resolveHash(data.Root[:], fromDB.LDB())
+				if err != nil {
+					return err
+				}
+				err = processNode(newNode, nil, false)
 				if err != nil {
 					return err
 				}
