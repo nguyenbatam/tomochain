@@ -17,6 +17,7 @@ import (
 var (
 	dir      = flag.String("dir", "/data/tomo/chaindata", "directory to TomoChain chaindata")
 	address  = flag.String("address", "/data/tomo/address.txt", "output list address in block")
+	from     = flag.Uint64("from", 0, "from block number")
 	cache, _ = lru.NewARC(1000000)
 )
 
@@ -37,8 +38,8 @@ func main() {
 	head := core.GetHeadBlockHash(db)
 	header := core.GetHeader(db, head, core.GetBlockNumber(db, head))
 	mapNonces := map[common.Address]uint64{}
-	for number := uint64(0); number <= header.Number.Uint64(); number++ {
-		if number%10000 == 0 {
+	for number := *from; number <= header.Number.Uint64(); number++ {
+		if number%1000 == 0 {
 			fmt.Println(time.Now(), number)
 		}
 		hash := core.GetCanonicalHash(db, number)
