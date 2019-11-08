@@ -349,6 +349,8 @@ func (hc *HeaderChain) GetHeader(hash common.Hash, number uint64) *types.Header 
 		return header.(*types.Header)
 	}
 	header := GetHeader(hc.chainDb, hash, number)
+	log.Debug("GetHeader","hash",hash.Hex(),"number",number,"header",header)
+	log.Debug(log.GetLineDetail())
 	if header == nil {
 		return nil
 	}

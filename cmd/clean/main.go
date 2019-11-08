@@ -119,7 +119,10 @@ func copyHeadData() error {
 	//genesis
 	genesiHash := core.GetCanonicalHash(fromDB, 0)
 	genesisBlock := core.GetBlock(fromDB, genesiHash, 0)
+	genesisTd := core.GetTd(fromDB, genesiHash, 0)
 	core.WriteBlock(toDB, genesisBlock)
+	core.WriteTd(toDB, genesiHash, 0, genesisTd)
+	core.WriteCanonicalHash(toDB, genesiHash, 0)
 	//configPrefix   = []byte("ethereum-config-") // config prefix for the db
 	chainConfig, err := core.GetChainConfig(fromDB, genesiHash)
 	if err != nil {
