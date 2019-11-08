@@ -94,24 +94,22 @@ func main() {
 			mapNonces[from] = oldNonce + 1
 			if tx.To() == nil {
 				smc := crypto.CreateAddress(from, tx.Nonce())
-				go func() {
-					addrChan <- smc.Hex()
-				}()
+				go func(addr string) {
+					addrChan <- addr
+				}(smc.Hex())
 			} else {
 				if tx.To().Hex() != common.BlockSigners {
-					go func() {
-						fmt.Println(addrChan)
-						addrChan <- tx.To().Hex()
-					}()
+					go func(addr string) {
+						addrChan <- addr
+					}(tx.To().Hex())
 				}
 			}
-			go func() {
-				addrChan <- from.Hex()
-			}()
+			go func(addr string) {
+				addrChan <- addr
+			}(from.Hex())
 		}
 	}
 	time.Sleep(10 * time.Second)
-	fmt.Println("close addrChan")
 	close(addrChan)
 	f.Close()
 	db.Close()
