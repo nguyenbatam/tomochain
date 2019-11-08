@@ -60,9 +60,14 @@ func main() {
 				break
 			}
 			body := core.GetBody(db, hash, i)
-			txs = append(txs, body.Transactions...)
+			if len(body.Transactions) > 0 {
+				txs = append(txs, body.Transactions...)
+			}
 		}
 		number = number + 21
+		if len(txs) == 0 {
+			continue
+		}
 		length := len(txs)
 		froms := make([]common.Address, length)
 		wg := sync.WaitGroup{}
