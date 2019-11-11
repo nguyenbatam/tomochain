@@ -108,8 +108,9 @@ func main() {
 			trim := bytes.TrimLeft(value.Bytes(), "\x00")
 			rlp.DecodeBytes(trim, &decode)
 			toValue := toState.GetStateNotCache(addr, key)
-			if bytes.Compare(value.Bytes(), decode) != 0 {
-				fmt.Println("Fail when compare 2 state in address ", addr.Hex(), "key", key.Hex(), "decode", common.Bytes2Hex(decode), "toValue", toValue.Hex())
+			value=common.BytesToHash(decode)
+			if bytes.Compare(toValue.Bytes(), value.Bytes()) != 0 {
+				fmt.Println("Fail when compare 2 state in address ", addr.Hex(), "key", key.Hex(), "decode", value.Hex(), "toValue", toValue.Hex())
 				return false
 			}
 			return true
