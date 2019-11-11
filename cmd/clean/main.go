@@ -259,7 +259,7 @@ func processNode(n trie.Node, path []byte, checkAddr bool) error {
 							return nil
 						}
 					}
-					fmt.Println("processNode",keyDB,childNode,append(path, byte(i)))
+					fmt.Println("processNode",common.Bytes2Hex(keyDB),childNode,common.Bytes2Hex(append(path, byte(i))))
 					err = processNode(childNode, append(path, byte(i)), checkAddr)
 					if err != nil {
 						return err
@@ -294,7 +294,7 @@ func processNode(n trie.Node, path []byte, checkAddr bool) error {
 					return nil
 				}
 			}
-			fmt.Println("processNode",keyDB,childNode,append(path, node.Key...))
+			fmt.Println("processNode",common.Bytes2Hex(keyDB),childNode,common.Bytes2Hex(append(path, node.Key...)))
 			err = processNode(childNode, append(path, node.Key...), checkAddr)
 			if err != nil {
 				return err
