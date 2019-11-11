@@ -289,13 +289,13 @@ func processNode(n trie.Node, path []byte, checkAddr bool) error {
 			}
 		}
 	case trie.ValueNode:
-		keyDB := append(sercureKey, hexToKeybytes(path)...)
-		valueDB, err := fromDB.Get(keyDB)
-		if err != nil {
-			fmt.Println("Not found key ", common.Bytes2Hex(keyDB))
-			return err
-		}
-		putToDataCopy(keyDB, valueDB)
+		//keyDB := append(sercureKey, hexToKeybytes(path)...)
+		//valueDB, err := fromDB.Get(keyDB)
+		//if err != nil {
+		//	fmt.Println("Not found key ", common.Bytes2Hex(keyDB))
+		//	return err
+		//}
+		//putToDataCopy(keyDB, valueDB)
 		if checkAddr {
 			var data state.Account
 			if err := rlp.DecodeBytes(node, &data); err != nil {
