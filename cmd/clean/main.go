@@ -134,6 +134,13 @@ func main() {
 	toDB.LDB().CompactRange(util.Range{})
 	fmt.Println(time.Now(), "end")
 	fmt.Println(toDB.Get(common.Hex2Bytes("e504dc6c154e0f07a777b966bd9cee5374965052e98da211ade00fdb5607164d")))
+	toStateCache := state.NewDatabase(toDB)
+	toState, err := state.NewEmpty(lastestRoot, toStateCache)
+	if err != nil {
+		fmt.Println("toState", err)
+		return
+	}
+	fmt.Println(toState.GetState(common.HexToAddress(*addr),common.HexToHash("c2a502b79558b1280105b2908755f834b74ce8132f5c60ca9a41d65019ee82e2")).Hex())
 }
 func copyHeadData() error {
 	fmt.Println(time.Now(), "copyHeadData")
