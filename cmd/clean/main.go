@@ -113,7 +113,7 @@ func main() {
 		}
 		fromState, err := fromBC.StateAt(lastestRoot)
 		dataRoot := fromState.GetStateObjectNotCache(common.HexToAddress(*addr)).Root()
-		err = copyStateData(dataRoot, true)
+		err = copyStateData(dataRoot, false)
 		if err != nil {
 			fmt.Println("copyState Address datRoot", dataRoot.Hex(), "err", err)
 			return
