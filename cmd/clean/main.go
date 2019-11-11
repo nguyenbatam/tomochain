@@ -16,6 +16,7 @@ import (
 	"github.com/ethereum/go-ethereum/trie"
 	"github.com/syndtr/goleveldb/leveldb"
 	"github.com/syndtr/goleveldb/leveldb/util"
+	"reflect"
 	"runtime"
 	"time"
 )
@@ -218,6 +219,8 @@ func putToDataCopy(key []byte, value []byte) {
 	}
 }
 func processNode(n trie.Node, path []byte, checkAddr bool) error {
+	fmt.Println("processNode", reflect.TypeOf(n), path, checkAddr)
+	fmt.Println("processNode", n)
 	switch node := n.(type) {
 	case *trie.FullNode:
 		// Full Node, move to the first non-nil child.
