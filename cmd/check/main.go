@@ -12,8 +12,8 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/eth"
 	"github.com/ethereum/go-ethereum/ethdb"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rlp"
-	"log"
 	"os"
 	"runtime"
 )
@@ -39,6 +39,7 @@ var (
 
 func main() {
 	flag.Parse()
+	log.Root().SetHandler(log.LvlFilterHandler(log.LvlError, log.StreamHandler(os.Stdout, log.TerminalFormat(true))))
 	fmt.Println("flag")
 	fromDB, err = ethdb.NewLDBDatabase(*from, eth.DefaultConfig.DatabaseCache, utils.MakeDatabaseHandles())
 	defer fromDB.Close()
@@ -46,38 +47,32 @@ func main() {
 		fmt.Println("fromDB", err)
 		return
 	}
-	fmt.Println(fromDB)
 	toDB, err = ethdb.NewLDBDatabase(*to, eth.DefaultConfig.DatabaseCache, utils.MakeDatabaseHandles())
 	defer toDB.Close()
 	if err != nil {
 		fmt.Println("toDB", err)
 		return
 	}
-	fmt.Println(toDB)
 	fromBC, err := core.NewBlockChain(fromDB, nil, nil, nil, vm.Config{})
 	if err != nil {
 		fmt.Println("fromBC", err)
 		return
 	}
-	fmt.Println(fromBC)
 	toBC, err := core.NewBlockChain(toDB, nil, nil, nil, vm.Config{})
 	if err != nil {
 		fmt.Println("toBC", err)
 		return
 	}
-	fmt.Println(toBC)
 	fromState, err := fromBC.StateAt(common.HexToHash(*root))
 	if err != nil {
 		fmt.Println("fromState", err)
 		return
 	}
-	fmt.Println(fromState)
 	toState, err := toBC.StateAt(common.HexToHash(*root))
 	if err != nil {
 		fmt.Println("toState", err)
 		return
 	}
-	fmt.Println(toState)
 	f, err := os.Open(*address)
 	if err != nil {
 		fmt.Println(err)
@@ -104,11 +99,8 @@ func main() {
 		}
 		fmt.Println("addr", addr.Hex())
 		check := fromState.ForEachStorageAndCheck(addr, func(key, value common.Hash) bool {
-			decode := []byte{}
-			trim := bytes.TrimLeft(value.Bytes(), "\x00")
-			rlp.DecodeBytes(trim, &decode)
+			value = fromState.GetStateNotCache(addr, key)
 			toValue := toState.GetStateNotCache(addr, key)
-			value=common.BytesToHash(decode)
 			if bytes.Compare(toValue.Bytes(), value.Bytes()) != 0 {
 				fmt.Println("Fail when compare 2 state in address ", addr.Hex(), "key", key.Hex(), "decode", value.Hex(), "toValue", toValue.Hex())
 				return false
