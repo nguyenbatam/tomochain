@@ -104,10 +104,12 @@ func main() {
 		}
 		fmt.Println("addr", addr.Hex())
 		check := fromState.ForEachStorageAndCheck(addr, func(key, value common.Hash) bool {
-			value = fromState.GetStateNotCache(addr, key)
+			decode := []byte{}
+			trim := bytes.TrimLeft(value.Bytes(), "\x00")
+			rlp.DecodeBytes(trim, &decode)
 			toValue := toState.GetStateNotCache(addr, key)
-			if bytes.Compare(value.Bytes(), toValue.Bytes()) != 0 {
-				fmt.Println("Fail when compare 2 state in address ", addr.Hex(), "key", key.Hex(), "fromValue", value.Hex(), "toValue", toValue.Hex())
+			if bytes.Compare(value.Bytes(), decode) != 0 {
+				fmt.Println("Fail when compare 2 state in address ", addr.Hex(), "key", key.Hex(), "decode", common.Bytes2Hex(decode), "toValue", toValue.Hex())
 				return false
 			}
 			return true
