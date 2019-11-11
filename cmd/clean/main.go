@@ -133,6 +133,7 @@ func main() {
 	fmt.Println(time.Now(), "compact")
 	toDB.LDB().CompactRange(util.Range{})
 	fmt.Println(time.Now(), "end")
+	fmt.Println(toDB.Get(common.Hex2Bytes("e504dc6c154e0f07a777b966bd9cee5374965052e98da211ade00fdb5607164d")))
 }
 func copyHeadData() error {
 	fmt.Println(time.Now(), "copyHeadData")
@@ -222,16 +223,16 @@ func copyStateData(root common.Hash, checkAddr bool) error {
 }
 func putToDataCopy(key []byte, value []byte) {
 	fmt.Println("putToDataCopy",common.Bytes2Hex(key))
-	batch.Put(key, value)
+	toDB.Put(key, value)
 	count++
 	//if count%1000 == 0 {
-		err := batch.Write()
-		count = 0
-		if err != nil {
-			fmt.Println("Error when put data to copy db")
-			panic(err)
-		}
-		batch.Reset()
+	//	err := batch.Write()
+	//	count = 0
+	//	if err != nil {
+	//		fmt.Println("Error when put data to copy db")
+	//		panic(err)
+	//	}
+	//	batch.Reset()
 	//}
 }
 func processNode(n trie.Node, path []byte, checkAddr bool) error {
