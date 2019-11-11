@@ -7,8 +7,7 @@ import (
 	"fmt"
 	"github.com/ethereum/go-ethereum/cmd/utils"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core"
-	"github.com/ethereum/go-ethereum/core/vm"
+	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/eth"
 	"github.com/ethereum/go-ethereum/ethdb"
@@ -53,22 +52,13 @@ func main() {
 		fmt.Println("toDB", err)
 		return
 	}
-	fromBC, err := core.NewBlockChain(fromDB, nil, nil, nil, vm.Config{})
+	fromState, err := state.New(common.HexToHash(*root), state.NewDatabase(fromDB))
 	if err != nil {
-		fmt.Println("fromBC", err)
+		fmt.Println("fromState", *root, err)
 		return
 	}
-	toBC, err := core.NewBlockChain(toDB, nil, nil, nil, vm.Config{})
-	if err != nil {
-		fmt.Println("toBC", err)
-		return
-	}
-	fromState, err := fromBC.StateAt(common.HexToHash(*root))
-	if err != nil {
-		fmt.Println("fromState", err)
-		return
-	}
-	toState, err := toBC.StateAt(common.HexToHash(*root))
+	toStateCache := state.NewDatabase(toDB)
+	toState, err := state.NewEmpty(common.HexToHash(*root), toStateCache)
 	if err != nil {
 		fmt.Println("toState", err)
 		return
