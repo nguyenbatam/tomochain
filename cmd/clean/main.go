@@ -16,7 +16,6 @@ import (
 	"github.com/ethereum/go-ethereum/trie"
 	"github.com/syndtr/goleveldb/leveldb"
 	"github.com/syndtr/goleveldb/leveldb/util"
-	"reflect"
 	"runtime"
 	"time"
 )
@@ -219,8 +218,6 @@ func putToDataCopy(key []byte, value []byte) {
 	}
 }
 func processNode(n trie.Node, path []byte, checkAddr bool) error {
-	fmt.Println("processNode", reflect.TypeOf(n), path, checkAddr)
-	fmt.Println("processNode", n)
 	switch node := n.(type) {
 	case *trie.FullNode:
 		// Full Node, move to the first non-nil child.
@@ -306,8 +303,8 @@ func processNode(n trie.Node, path []byte, checkAddr bool) error {
 				fmt.Println("Failed to decode state object", "path", common.Bytes2Hex(path), "value", common.Bytes2Hex(node))
 				return err
 			}
-			fmt.Println("Try copy data in a smart contract ", common.Bytes2Hex(valueDB), common.Bytes2Hex(keyDB), data.Root.Hex())
 			if common.EmptyHash(data.Root) && data.Root != emptyRoot && data.Root != emptyState {
+				fmt.Println("Try copy data in a smart contract ", common.Bytes2Hex(valueDB), common.Bytes2Hex(keyDB), data.Root.Hex())
 				exist, err := toDB.LDB().Has(data.Root[:], nil)
 				if err != nil {
 					return err
@@ -319,6 +316,7 @@ func processNode(n trie.Node, path []byte, checkAddr bool) error {
 				if err != nil {
 					return err
 				}
+				fmt.Println("Try process data root in a smart contract ", common.Bytes2Hex(valueDB), common.Bytes2Hex(keyDB), data.Root.Hex())
 				err = processNode(newNode, nil, false)
 				if err != nil {
 					return err
