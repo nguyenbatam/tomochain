@@ -302,8 +302,8 @@ func processNode(n trie.Node, path []byte, checkAddr bool) error {
 				fmt.Println("Failed to decode state object", "path", common.Bytes2Hex(path), "value", common.Bytes2Hex(node))
 				return err
 			}
+			fmt.Println("Try copy data in a smart contract ", common.Bytes2Hex(valueDB), common.Bytes2Hex(keyDB), data.Root.Hex())
 			if common.EmptyHash(data.Root) && data.Root != emptyRoot && data.Root != emptyState {
-				fmt.Println("Try copy data in a smart contract ", common.Bytes2Hex(valueDB), common.Bytes2Hex(keyDB))
 				exist, err := toDB.LDB().Has(data.Root[:], nil)
 				if err != nil {
 					return err
