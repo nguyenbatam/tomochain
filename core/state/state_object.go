@@ -193,7 +193,6 @@ func (self *stateObject) GetState(db Database, key common.Hash) common.Hash {
 	return value
 }
 
-
 // GetState returns a value in account storage.
 func (self *stateObject) GetStateNotCache(db Database, key common.Hash) common.Hash {
 	value := common.Hash{}
@@ -397,6 +396,10 @@ func (self *stateObject) Balance() *big.Int {
 
 func (self *stateObject) Nonce() uint64 {
 	return self.data.Nonce
+}
+
+func (self *stateObject) Root() common.Hash {
+	return self.data.Root
 }
 
 // Never called, but must be present to allow stateObject to be used
