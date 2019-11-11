@@ -295,6 +295,7 @@ func processNode(n trie.Node, path []byte, checkAddr bool) error {
 			fmt.Println("Not found key ", common.Bytes2Hex(keyDB))
 			return err
 		}
+		fmt.Println("find a value node", common.Bytes2Hex(valueDB), common.Bytes2Hex(keyDB))
 		putToDataCopy(keyDB, valueDB)
 		if checkAddr {
 			var data state.Account
