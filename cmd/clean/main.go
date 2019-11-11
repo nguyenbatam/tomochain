@@ -221,6 +221,7 @@ func copyStateData(root common.Hash, checkAddr bool) error {
 	return nil
 }
 func putToDataCopy(key []byte, value []byte) {
+	fmt.Println("putToDataCopy",common.Bytes2Hex(key))
 	batch.Put(key, value)
 	count++
 	if count%1000 == 0 {
@@ -258,6 +259,7 @@ func processNode(n trie.Node, path []byte, checkAddr bool) error {
 							return nil
 						}
 					}
+					fmt.Println("processNode",keyDB,childNode,append(path, byte(i)))
 					err = processNode(childNode, append(path, byte(i)), checkAddr)
 					if err != nil {
 						return err
@@ -268,6 +270,7 @@ func processNode(n trie.Node, path []byte, checkAddr bool) error {
 					if !ok {
 						return err
 					}
+					fmt.Println("MissingNodeError",node,path,checkAddr)
 				}
 			}
 		}
@@ -291,6 +294,7 @@ func processNode(n trie.Node, path []byte, checkAddr bool) error {
 					return nil
 				}
 			}
+			fmt.Println("processNode",keyDB,childNode,append(path, node.Key...))
 			err = processNode(childNode, append(path, node.Key...), checkAddr)
 			if err != nil {
 				return err
@@ -303,6 +307,7 @@ func processNode(n trie.Node, path []byte, checkAddr bool) error {
 			if !ok {
 				return err
 			}
+			fmt.Println("MissingNodeError",node,path,checkAddr)
 		}
 	case trie.ValueNode:
 		if len(*addr) > 0 {
