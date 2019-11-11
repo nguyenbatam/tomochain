@@ -224,7 +224,7 @@ func putToDataCopy(key []byte, value []byte) {
 	fmt.Println("putToDataCopy",common.Bytes2Hex(key))
 	batch.Put(key, value)
 	count++
-	if count%1000 == 0 {
+	//if count%1000 == 0 {
 		err := batch.Write()
 		count = 0
 		if err != nil {
@@ -232,7 +232,7 @@ func putToDataCopy(key []byte, value []byte) {
 			panic(err)
 		}
 		batch.Reset()
-	}
+	//}
 }
 func processNode(n trie.Node, path []byte, checkAddr bool) error {
 	switch node := n.(type) {
