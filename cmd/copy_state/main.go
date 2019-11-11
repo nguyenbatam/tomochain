@@ -224,8 +224,7 @@ func copyStateRoot(root common.Hash) error {
 }
 func copyStateData(fromState *state.StateDB, toState *state.StateDB, addr common.Address) {
 	fromObject := fromState.GetStateObjectNotCache(addr)
-	toObject := toState.GetStateObjectNotCache(addr)
-
+	toObject := toState.NewObject(addr)
 	toObject.SetNonce(fromObject.Nonce())
 	toObject.SetBalance(fromObject.Balance())
 	fromCode := fromObject.Code(fromState.Database())
