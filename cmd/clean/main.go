@@ -300,7 +300,7 @@ func processNode(n trie.Node, path []byte, checkAddr bool) error {
 				return err
 			}
 			if keyDB != nil {
-				putToDataCopy(node.Val.(trie.HashNode), valueDB)
+				putToDataCopy(keyDB, valueDB)
 			}
 		} else if err != nil {
 			_, ok := err.(*trie.MissingNodeError)
