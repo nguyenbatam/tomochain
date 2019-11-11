@@ -195,7 +195,7 @@ func copyStateRoot(root common.Hash) error {
 	}
 	fmt.Println(fromState)
 	toStateCache:=state.NewDatabase(toDB)
-	toState, err := state.New(root,toStateCache)
+	toState, err := state.NewEmpty(root,toStateCache)
 	if err != nil {
 		fmt.Println("toState", root.Hex(), err)
 		return err
