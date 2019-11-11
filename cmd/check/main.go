@@ -12,7 +12,6 @@ import (
 	"github.com/ethereum/go-ethereum/eth"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/rlp"
 	"os"
 	"runtime"
 )
@@ -72,21 +71,21 @@ func main() {
 	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
 		addr := common.HexToAddress(scanner.Text())
-		objectFrom := fromState.GetOrNewStateObject(addr)
-		byteFrom, err := rlp.EncodeToBytes(objectFrom)
-		if err != nil {
-			fmt.Println("objectFrom", err)
-		}
-		objectTo := toState.GetOrNewStateObject(addr)
-		byteTo, err := rlp.EncodeToBytes(objectTo)
-		if err != nil {
-			fmt.Println("objectTo", err)
-		}
-
-		if bytes.Compare(byteFrom, byteTo) != 0 {
-			fmt.Println("Fail when compare 2 address ", addr, common.Bytes2Hex(byteFrom), common.Bytes2Hex(byteTo))
-			break
-		}
+		//objectFrom := fromState.GetOrNewStateObject(addr)
+		//byteFrom, err := rlp.EncodeToBytes(objectFrom)
+		//if err != nil {
+		//	fmt.Println("objectFrom", err)
+		//}
+		//objectTo := toState.GetOrNewStateObject(addr)
+		//byteTo, err := rlp.EncodeToBytes(objectTo)
+		//if err != nil {
+		//	fmt.Println("objectTo", err)
+		//}
+		//
+		//if bytes.Compare(byteFrom, byteTo) != 0 {
+		//	fmt.Println("Fail when compare 2 address ", addr.Hex(), common.Bytes2Hex(byteFrom), common.Bytes2Hex(byteTo))
+		//	break
+		//}
 		fmt.Println("addr", addr.Hex())
 		check := fromState.ForEachStorageAndCheck(addr, func(key, value common.Hash) bool {
 			value = fromState.GetStateNotCache(addr, key)
