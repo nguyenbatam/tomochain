@@ -144,11 +144,11 @@ func (self *stateObject) markSuicided() {
 }
 
 func (c *stateObject) touch() {
-	c.db.journal = append(c.db.journal, touchChange{
-		account:   &c.address,
-		prev:      c.touched,
-		prevDirty: c.onDirty == nil,
-	})
+	//c.db.journal = append(c.db.journal, touchChange{
+	//	account:   &c.address,
+	//	prev:      c.touched,
+	//	prevDirty: c.onDirty == nil,
+	//})
 	if c.onDirty != nil {
 		c.onDirty(c.Address())
 		c.onDirty = nil
@@ -193,13 +193,33 @@ func (self *stateObject) GetState(db Database, key common.Hash) common.Hash {
 	return value
 }
 
+
+// GetState returns a value in account storage.
+func (self *stateObject) GetStateNotCache(db Database, key common.Hash) common.Hash {
+	value := common.Hash{}
+	// Load from DB in case it is missing.
+	enc, err := self.getTrie(db).TryGet(key[:])
+	if err != nil {
+		self.setError(err)
+		return common.Hash{}
+	}
+	if len(enc) > 0 {
+		_, content, _, err := rlp.Split(enc)
+		if err != nil {
+			self.setError(err)
+		}
+		value.SetBytes(content)
+	}
+	return value
+}
+
 // SetState updates a value in account storage.
 func (self *stateObject) SetState(db Database, key, value common.Hash) {
-	self.db.journal = append(self.db.journal, storageChange{
-		account:  &self.address,
-		key:      key,
-		prevalue: self.GetState(db, key),
-	})
+	//self.db.journal = append(self.db.journal, storageChange{
+	//	account:  &self.address,
+	//	key:      key,
+	//	prevalue: self.GetState(db, key),
+	//})
 	self.setState(key, value)
 }
 
@@ -274,10 +294,10 @@ func (c *stateObject) SubBalance(amount *big.Int) {
 }
 
 func (self *stateObject) SetBalance(amount *big.Int) {
-	self.db.journal = append(self.db.journal, balanceChange{
-		account: &self.address,
-		prev:    new(big.Int).Set(self.data.Balance),
-	})
+	//self.db.journal = append(self.db.journal, balanceChange{
+	//	account: &self.address,
+	//	prev:    new(big.Int).Set(self.data.Balance),
+	//})
 	self.setBalance(amount)
 }
 
@@ -332,12 +352,12 @@ func (self *stateObject) Code(db Database) []byte {
 }
 
 func (self *stateObject) SetCode(codeHash common.Hash, code []byte) {
-	prevcode := self.Code(self.db.db)
-	self.db.journal = append(self.db.journal, codeChange{
-		account:  &self.address,
-		prevhash: self.CodeHash(),
-		prevcode: prevcode,
-	})
+	//prevcode := self.Code(self.db.db)
+	//self.db.journal = append(self.db.journal, codeChange{
+	//	account:  &self.address,
+	//	prevhash: self.CodeHash(),
+	//	prevcode: prevcode,
+	//})
 	self.setCode(codeHash, code)
 }
 
@@ -352,10 +372,10 @@ func (self *stateObject) setCode(codeHash common.Hash, code []byte) {
 }
 
 func (self *stateObject) SetNonce(nonce uint64) {
-	self.db.journal = append(self.db.journal, nonceChange{
-		account: &self.address,
-		prev:    self.data.Nonce,
-	})
+	//self.db.journal = append(self.db.journal, nonceChange{
+	//	account: &self.address,
+	//	prev:    self.data.Nonce,
+	//})
 	self.setNonce(nonce)
 }
 

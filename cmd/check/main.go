@@ -92,8 +92,6 @@ func main() {
 		if err != nil {
 			fmt.Println("objectFrom", err)
 		}
-		fmt.Println("addr",addr)
-
 		objectTo := toState.GetOrNewStateObject(addr)
 		byteTo, err := rlp.EncodeToBytes(objectTo)
 		if err != nil {
@@ -104,16 +102,18 @@ func main() {
 			fmt.Println("Fail when compare 2 address ", addr, common.Bytes2Hex(byteFrom), common.Bytes2Hex(byteTo))
 			break
 		}
-		fmt.Println("addr",addr,"code hash ",common.Bytes2Hex(objectFrom.CodeHash()))
-		//if bytes.Compare(objectFrom.CodeHash(), emptyState) != 0 {
-		//	fromState.ForEachStorage(addr, func(key, value common.Hash) bool {
-		//		toValue := toState.GetState(addr, key)
-		//		if value != toValue {
-		//			fmt.Println("Fail when compare 2 state in address ", addr, "key", key.Hex(), "fromValue", value.Hex(), "toValue", toValue.Hex())
-		//		}
-		//		return true
-		//	})
-		//}
+		fmt.Println("addr", addr.Hex())
+		check := fromState.ForEachStorageAndCheck(addr, func(key, value common.Hash) bool {
+			toValue := toState.GetStateNotCache(addr, key)
+			if value != toValue {
+				fmt.Println("Fail when compare 2 state in address ", addr.Hex(), "key", key.Hex(), "fromValue", value.Hex(), "toValue", toValue.Hex())
+				return false
+			}
+			return true
+		})
+		if !check {
+			break
+		}
 	}
 	if err := scanner.Err(); err != nil {
 		log.Fatal(err)

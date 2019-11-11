@@ -76,7 +76,7 @@ type StateDB struct {
 
 	// Journal of state modifications. This is the backbone of
 	// Snapshot and RevertToSnapshot.
-	journal        journal
+	//journal        journal
 	validRevisions []revision
 	nextRevisionId int
 
@@ -147,7 +147,7 @@ func (self *StateDB) Reset(root common.Hash) error {
 }
 
 func (self *StateDB) AddLog(log *types.Log) {
-	self.journal = append(self.journal, addLogChange{txhash: self.thash})
+	//self.journal = append(self.journal, addLogChange{txhash: self.thash})
 
 	log.TxHash = self.thash
 	log.BlockHash = self.bhash
@@ -172,7 +172,7 @@ func (self *StateDB) Logs() []*types.Log {
 // AddPreimage records a SHA3 preimage seen by the VM.
 func (self *StateDB) AddPreimage(hash common.Hash, preimage []byte) {
 	if _, ok := self.preimages[hash]; !ok {
-		self.journal = append(self.journal, addPreimageChange{hash: hash})
+		//self.journal = append(self.journal, addPreimageChange{hash: hash})
 		pi := make([]byte, len(preimage))
 		copy(pi, preimage)
 		self.preimages[hash] = pi
@@ -185,7 +185,7 @@ func (self *StateDB) Preimages() map[common.Hash][]byte {
 }
 
 func (self *StateDB) AddRefund(gas uint64) {
-	self.journal = append(self.journal, refundChange{prev: self.refund})
+	//self.journal = append(self.journal, refundChange{prev: self.refund})
 	self.refund += gas
 }
 
@@ -255,6 +255,14 @@ func (self *StateDB) GetState(addr common.Address, bhash common.Hash) common.Has
 	stateObject := self.getStateObject(addr)
 	if stateObject != nil {
 		return stateObject.GetState(self.db, bhash)
+	}
+	return common.Hash{}
+}
+
+func (self *StateDB) GetStateNotCache(addr common.Address, bhash common.Hash) common.Hash {
+	stateObject := self.getStateObject(addr)
+	if stateObject != nil {
+		return stateObject.GetStateNotCache(self.db, bhash)
 	}
 	return common.Hash{}
 }
@@ -341,11 +349,11 @@ func (self *StateDB) Suicide(addr common.Address) bool {
 	if stateObject == nil {
 		return false
 	}
-	self.journal = append(self.journal, suicideChange{
-		account:     &addr,
-		prev:        stateObject.suicided,
-		prevbalance: new(big.Int).Set(stateObject.Balance()),
-	})
+	//self.journal = append(self.journal, suicideChange{
+	//	account:     &addr,
+	//	prev:        stateObject.suicided,
+	//	prevbalance: new(big.Int).Set(stateObject.Balance()),
+	//})
 	stateObject.markSuicided()
 	stateObject.data.Balance = new(big.Int)
 
@@ -408,6 +416,24 @@ func (self *StateDB) getStateObject(addr common.Address) (stateObject *stateObje
 	return obj
 }
 
+// Retrieve a state object given my the address. Returns nil if not found.
+func (self *StateDB) GetStateObjectNotCache(addr common.Address) (stateObject *stateObject) {
+	// Load the object from the database.
+	enc, err := self.trie.TryGet(addr[:])
+	if len(enc) == 0 {
+		self.setError(err)
+		return nil
+	}
+	var data Account
+	if err := rlp.DecodeBytes(enc, &data); err != nil {
+		log.Error("Failed to decode state object", "addr", addr, "err", err)
+		return nil
+	}
+	// Insert into the live set.
+	obj := newObject(self, addr, data, self.MarkStateObjectDirty)
+	return obj
+}
+
 func (self *StateDB) setStateObject(object *stateObject) {
 	self.stateObjects[object.Address()] = object
 }
@@ -434,9 +460,9 @@ func (self *StateDB) createObject(addr common.Address) (newobj, prev *stateObjec
 	newobj = newObject(self, addr, Account{}, self.MarkStateObjectDirty)
 	newobj.setNonce(0) // sets the object to dirty
 	if prev == nil {
-		self.journal = append(self.journal, createObjectChange{account: &addr})
+		//self.journal = append(self.journal, createObjectChange{account: &addr})
 	} else {
-		self.journal = append(self.journal, resetObjectChange{prev: prev})
+		//self.journal = append(self.journal, resetObjectChange{prev: prev})
 	}
 	self.setStateObject(newobj)
 	return newobj, prev
@@ -480,6 +506,23 @@ func (db *StateDB) ForEachStorage(addr common.Address, cb func(key, value common
 	}
 }
 
+func (db *StateDB) ForEachStorageAndCheck(addr common.Address, cb func(key, value common.Hash) bool) bool {
+	so := db.GetStateObjectNotCache(addr)
+	if so == nil {
+		return true
+	}
+
+	it := trie.NewIterator(so.getTrie(db.db).NodeIterator(nil))
+	for it.Next() {
+		// ignore cached values
+		key := common.BytesToHash(db.trie.GetKey(it.Key))
+		if !cb(key, common.BytesToHash(it.Value)) {
+			return false
+		}
+	}
+	return true
+}
+
 // Copy creates a deep, independent copy of the state.
 // Snapshots of the copied state cannot be applied to the copy.
 func (self *StateDB) Copy() *StateDB {
@@ -516,7 +559,7 @@ func (self *StateDB) Copy() *StateDB {
 func (self *StateDB) Snapshot() int {
 	id := self.nextRevisionId
 	self.nextRevisionId++
-	self.validRevisions = append(self.validRevisions, revision{id, len(self.journal)})
+	//self.validRevisions = append(self.validRevisions, revision{id, len(self.journal)})
 	return id
 }
 
@@ -529,13 +572,13 @@ func (self *StateDB) RevertToSnapshot(revid int) {
 	if idx == len(self.validRevisions) || self.validRevisions[idx].id != revid {
 		panic(fmt.Errorf("revision id %v cannot be reverted", revid))
 	}
-	snapshot := self.validRevisions[idx].journalIndex
+	//snapshot := self.validRevisions[idx].journalIndex
 
 	// Replay the journal to undo changes.
-	for i := len(self.journal) - 1; i >= snapshot; i-- {
-		self.journal[i].undo(self)
-	}
-	self.journal = self.journal[:snapshot]
+	//for i := len(self.journal) - 1; i >= snapshot; i-- {
+	//	self.journal[i].undo(self)
+	//}
+	//self.journal = self.journal[:snapshot]
 
 	// Remove invalidated snapshots from the stack.
 	self.validRevisions = self.validRevisions[:idx]
@@ -600,7 +643,7 @@ func (s *StateDB) DeleteSuicides() {
 }
 
 func (s *StateDB) clearJournalAndRefund() {
-	s.journal = nil
+	//s.journal = nil
 	s.validRevisions = s.validRevisions[:0]
 	s.refund = 0
 }

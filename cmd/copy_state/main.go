@@ -223,15 +223,15 @@ func copyStateRoot(root common.Hash) error {
 	return nil
 }
 func copyStateData(fromState *state.StateDB, toState *state.StateDB, addr common.Address) {
-	fromObject := fromState.GetOrNewStateObject(addr)
-	toObject := toState.GetOrNewStateObject(addr)
+	fromObject := fromState.GetStateObjectNotCache(addr)
+	toObject := toState.GetStateObjectNotCache(addr)
 
 	toObject.SetNonce(fromObject.Nonce())
 	toObject.SetBalance(fromObject.Balance())
 	fromCode := fromObject.Code(fromState.Database())
 	if fromCode != nil {
 		toObject.SetCode(crypto.Keccak256Hash(fromCode), fromCode)
-		fromState.ForEachStorage(addr, func(key, value common.Hash) bool {
+		fromState.ForEachStorageAndCheck(addr, func(key, value common.Hash) bool {
 			toState.SetState(addr, key, value)
 			return true
 		})
