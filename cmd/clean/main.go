@@ -243,6 +243,7 @@ func putToDataCopy(key []byte, value []byte) {
 	//}
 }
 func processNode(n trie.Node, path []byte, checkAddr bool) error {
+	fmt.Println("processNode",common.Bytes2Hex(path),checkAddr,n)
 	switch node := n.(type) {
 	case *trie.FullNode:
 		// Full Node, move to the first non-nil child.
