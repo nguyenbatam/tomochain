@@ -295,7 +295,7 @@ func processNode(n trie.Node, path []byte, checkAddr bool) error {
 			fmt.Println("Not found key ", common.Bytes2Hex(keyDB))
 			return err
 		}
-		fmt.Println("find a value node", common.Bytes2Hex(valueDB), common.Bytes2Hex(keyDB))
+		fmt.Println("find a value node", common.Bytes2Hex(valueDB), common.Bytes2Hex(keyDB), checkAddr)
 		putToDataCopy(keyDB, valueDB)
 		if checkAddr {
 			var data state.Account
@@ -303,7 +303,7 @@ func processNode(n trie.Node, path []byte, checkAddr bool) error {
 				fmt.Println("Failed to decode state object", "path", common.Bytes2Hex(path), "value", common.Bytes2Hex(node))
 				return err
 			}
-			if common.EmptyHash(data.Root) && data.Root != emptyRoot && data.Root != emptyState {
+			if !common.EmptyHash(data.Root) && data.Root != emptyRoot && data.Root != emptyState {
 				fmt.Println("Try copy data in a smart contract ", common.Bytes2Hex(valueDB), common.Bytes2Hex(keyDB), data.Root.Hex())
 				exist, err := toDB.LDB().Has(data.Root[:], nil)
 				if err != nil {
