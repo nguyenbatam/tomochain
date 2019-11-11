@@ -99,6 +99,22 @@ func New(root common.Hash, db Database) (*StateDB, error) {
 	}, nil
 }
 
+// Create a new state from a given trie.
+func NewEmpty(root common.Hash, db Database) (*StateDB, error) {
+	tr, err := db.(*cachingDB).OpenEmptyTrie(root)
+	if err != nil {
+		return nil, err
+	}
+	return &StateDB{
+		db:                db,
+		trie:              tr,
+		stateObjects:      make(map[common.Address]*stateObject),
+		stateObjectsDirty: make(map[common.Address]struct{}),
+		logs:              make(map[common.Hash][]*types.Log),
+		preimages:         make(map[common.Hash][]byte),
+	}, nil
+}
+
 // setError remembers the first non-nil error it is called with.
 func (self *StateDB) setError(err error) {
 	if self.dbErr == nil {
