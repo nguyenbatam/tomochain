@@ -105,15 +105,15 @@ func main() {
 			break
 		}
 		fmt.Println("addr",addr,"code hash ",common.Bytes2Hex(objectFrom.CodeHash()))
-		if bytes.Compare(objectFrom.CodeHash(), emptyState) != 0 {
-			fromState.ForEachStorage(addr, func(key, value common.Hash) bool {
-				toValue := toState.GetState(addr, key)
-				if value != toValue {
-					fmt.Println("Fail when compare 2 state in address ", addr, "key", key.Hex(), "fromValue", value.Hex(), "toValue", toValue.Hex())
-				}
-				return true
-			})
-		}
+		//if bytes.Compare(objectFrom.CodeHash(), emptyState) != 0 {
+		//	fromState.ForEachStorage(addr, func(key, value common.Hash) bool {
+		//		toValue := toState.GetState(addr, key)
+		//		if value != toValue {
+		//			fmt.Println("Fail when compare 2 state in address ", addr, "key", key.Hex(), "fromValue", value.Hex(), "toValue", toValue.Hex())
+		//		}
+		//		return true
+		//	})
+		//}
 	}
 	if err := scanner.Err(); err != nil {
 		log.Fatal(err)
