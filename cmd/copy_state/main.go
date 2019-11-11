@@ -11,7 +11,6 @@ import (
 	"github.com/ethereum/go-ethereum/consensus/posv"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/state"
-	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/eth"
 	"github.com/ethereum/go-ethereum/ethdb"
@@ -185,28 +184,18 @@ func copyBlockData(backupNumber uint64) error {
 	return nil
 }
 func copyStateRoot(root common.Hash) error {
-	fromBC, err := core.NewBlockChain(fromDB, nil, nil, nil, vm.Config{})
-	if err != nil {
-		fmt.Println("fromBC", err)
-		return err
-	}
-	fromState, err := fromBC.StateAt(root)
+	fromState, err := state.New(root,state.NewDatabase(fromDB))
 	if err != nil {
 		fmt.Println("fromState", root.Hex(), err)
 		return err
 	}
-	toBC, err := core.NewBlockChain(toDB, nil, nil, nil, vm.Config{})
-	if err != nil {
-		fmt.Println("toBC", err)
-		return err
-	}
-	fmt.Println(toBC)
 	if err != nil {
 		fmt.Println("fromState", err)
 		return err
 	}
 	fmt.Println(fromState)
-	toState, err := toBC.StateAt(root)
+	toStateCache:=state.NewDatabase(toDB)
+	toState, err := state.New(root,toStateCache)
 	if err != nil {
 		fmt.Println("toState", root.Hex(), err)
 		return err
@@ -227,6 +216,7 @@ func copyStateRoot(root common.Hash) error {
 		fmt.Println("To State commit err", err)
 		return err
 	}
+	toStateCache.TrieDB().Commit(newRoot,false)
 	fmt.Println(time.Now(), "from Root", root.Hex(), "to root", newRoot.Hex())
 	if root != newRoot {
 		return errors.New("Fail compare 2 state root")
