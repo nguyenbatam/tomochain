@@ -227,7 +227,7 @@ func copyStateRoot(root common.Hash) error {
 func copyStateData(fromState *state.StateDB, toState *state.StateDB, addr common.Address) {
 	fromObject := fromState.GetStateObjectNotCache(addr)
 	if fromObject == nil || fromObject.Empty() {
-		fmt.Println("from object empty", fromObject)
+		fmt.Println("from object empty", addr.Hex(), fromObject, fromState.Error())
 		return
 	}
 	toObject := toState.NewObject(addr)
