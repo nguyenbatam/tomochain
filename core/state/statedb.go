@@ -37,10 +37,10 @@ type revision struct {
 }
 
 var (
-	// emptyState is the known hash of an empty state trie entry.
+	// emptyState is the known hash of an Empty state trie entry.
 	emptyState = crypto.Keccak256Hash(nil)
 
-	// emptyCode is the known hash of the empty EVM bytecode.
+	// emptyCode is the known hash of the Empty EVM bytecode.
 	emptyCode = crypto.Keccak256Hash(nil)
 )
 
@@ -196,10 +196,10 @@ func (self *StateDB) Exist(addr common.Address) bool {
 }
 
 // Empty returns whether the state object is either non-existent
-// or empty according to the EIP161 specification (balance = nonce = code = 0)
+// or Empty according to the EIP161 specification (balance = nonce = code = 0)
 func (self *StateDB) Empty(addr common.Address) bool {
 	so := self.getStateObject(addr)
-	return so == nil || so.empty()
+	return so == nil || so.Empty()
 }
 
 // Retrieve the balance from the given address or 0 if object not found
@@ -603,7 +603,7 @@ func (self *StateDB) GetRefund() uint64 {
 func (s *StateDB) Finalise(deleteEmptyObjects bool) {
 	for addr := range s.stateObjectsDirty {
 		stateObject := s.stateObjects[addr]
-		if stateObject.suicided || (deleteEmptyObjects && stateObject.empty()) {
+		if stateObject.suicided || (deleteEmptyObjects && stateObject.Empty()) {
 			s.deleteStateObject(stateObject)
 		} else {
 			stateObject.updateRoot(s.db)
@@ -665,7 +665,7 @@ func (s *StateDB) Commit(deleteEmptyObjects bool) (root common.Hash, err error) 
 	for addr, stateObject := range s.stateObjects {
 		_, isDirty := s.stateObjectsDirty[addr]
 		switch {
-		case stateObject.suicided || (isDirty && deleteEmptyObjects && stateObject.empty()):
+		case stateObject.suicided || (isDirty && deleteEmptyObjects && stateObject.Empty()):
 			// If the object has been removed, don't bother syncing it
 			// and just mark it for deletion in the trie.
 			s.deleteStateObject(stateObject)

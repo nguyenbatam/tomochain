@@ -14,6 +14,7 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/eth"
 	"github.com/ethereum/go-ethereum/ethdb"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/trie"
 	"github.com/syndtr/goleveldb/leveldb/util"
 	"os"
@@ -43,6 +44,7 @@ var (
 
 func main() {
 	flag.Parse()
+	log.Root().SetHandler(log.LvlFilterHandler(log.LvlError, log.StreamHandler(os.Stdout, log.TerminalFormat(true))))
 	fromDB, err = ethdb.NewLDBDatabase(*from, eth.DefaultConfig.DatabaseCache, utils.MakeDatabaseHandles())
 	defer fromDB.Close()
 	if err != nil {
@@ -224,6 +226,10 @@ func copyStateRoot(root common.Hash) error {
 }
 func copyStateData(fromState *state.StateDB, toState *state.StateDB, addr common.Address) {
 	fromObject := fromState.GetStateObjectNotCache(addr)
+	if fromObject == nil || fromObject.Empty() {
+		fmt.Println("from object empty", fromObject)
+		return
+	}
 	toObject := toState.NewObject(addr)
 	toObject.SetNonce(fromObject.Nonce())
 	toObject.SetBalance(fromObject.Balance())
