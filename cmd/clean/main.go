@@ -9,6 +9,7 @@ import (
 	"github.com/ethereum/go-ethereum/consensus/posv"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/state"
+	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/eth"
 	"github.com/ethereum/go-ethereum/ethdb"
@@ -24,6 +25,7 @@ var (
 	from   = flag.String("from", "/data/tomo/chaindata_bak", "directory to TomoChain chaindata")
 	to     = flag.String("to", "/data/tomo/chaindata_copy", "directory to clean chaindata")
 	length = flag.Uint64("length", 100, "minimum length backup state trie data")
+	addr   = flag.String("addr", "", "address want copy state trie")
 
 	sercureKey       = []byte("secure-key-") // preimagePrefix + hash -> preimage
 	nWorker          = runtime.NumCPU() / 2
@@ -103,16 +105,31 @@ func main() {
 		fmt.Println("copyBlockData", err)
 		return
 	}
-	err = copyStateData(lastestRoot)
-	if err != nil {
-		fmt.Println("copyStateData lastestRoot", lastestRoot.Hex(), "err", err)
-		return
+	if len(*addr) > 0 {
+		fromBC, err := core.NewBlockChain(fromDB, nil, nil, nil, vm.Config{})
+		if err != nil {
+			fmt.Println("fromBC", err)
+			return
+		}
+		fromState, err := fromBC.StateAt(lastestRoot)
+		dataRoot := fromState.GetStateObjectNotCache(common.HexToAddress(*addr)).Root()
+		err = copyStateData(dataRoot, true)
+		if err != nil {
+			fmt.Println("copyState Address datRoot", dataRoot.Hex(), "err", err)
+			return
+		}
+	} else {
+		err = copyStateData(lastestRoot, true)
+		if err != nil {
+			fmt.Println("copyStateData lastestRoot", lastestRoot.Hex(), "err", err)
+			return
+		}
 	}
-	err = copyStateData(backupRoot)
-	if err != nil {
-		fmt.Println("copyStateData backupRoot", backupRoot.Hex(), "err", err)
-		return
-	}
+	//err = copyStateData(backupRoot)
+	//if err != nil {
+	//	fmt.Println("copyStateData backupRoot", backupRoot.Hex(), "err", err)
+	//	return
+	//}
 	fmt.Println(time.Now(), "compact")
 	toDB.LDB().CompactRange(util.Range{})
 	fmt.Println(time.Now(), "end")
@@ -182,15 +199,14 @@ func copyBlockData(backupNumber uint64) error {
 	return nil
 }
 
-func copyStateData(root common.Hash) error {
+func copyStateData(root common.Hash, checkAddr bool) error {
 	fmt.Println(time.Now(), "run copy state data ", "root", root.Hex())
 	batch = toDB.NewBatch()
 	rootNode, valueDB, err := resolveHash(root[:], fromDB.LDB())
 	if err != nil {
 		return err
 	}
-
-	err = processNode(rootNode, nil, true)
+	err = processNode(rootNode, nil, checkAddr)
 	if err != nil {
 		return err
 	}
@@ -289,13 +305,16 @@ func processNode(n trie.Node, path []byte, checkAddr bool) error {
 			}
 		}
 	case trie.ValueNode:
-		//keyDB := append(sercureKey, hexToKeybytes(path)...)
-		//valueDB, err := fromDB.Get(keyDB)
-		//if err != nil {
-		//	fmt.Println("Not found key ", common.Bytes2Hex(keyDB))
-		//	return err
-		//}
-		//putToDataCopy(keyDB, valueDB)
+		if len(*addr) > 0 {
+			keyDB := append(sercureKey, hexToKeybytes(path)...)
+			valueDB, err := fromDB.Get(keyDB)
+			if err != nil {
+				fmt.Println("Not found key ", common.Bytes2Hex(keyDB))
+				return err
+			}
+			fmt.Println("find key ", common.Bytes2Hex(valueDB), "path", common.Bytes2Hex(path))
+			//putToDataCopy(keyDB, valueDB)
+		}
 		if checkAddr {
 			var data state.Account
 			if err := rlp.DecodeBytes(node, &data); err != nil {
