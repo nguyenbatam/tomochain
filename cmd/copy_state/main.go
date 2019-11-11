@@ -184,7 +184,7 @@ func copyBlockData(backupNumber uint64) error {
 	return nil
 }
 func copyStateRoot(root common.Hash) error {
-	fromState, err := state.New(root,state.NewDatabase(fromDB))
+	fromState, err := state.New(root, state.NewDatabase(fromDB))
 	if err != nil {
 		fmt.Println("fromState", root.Hex(), err)
 		return err
@@ -193,8 +193,8 @@ func copyStateRoot(root common.Hash) error {
 		fmt.Println("fromState", err)
 		return err
 	}
-	toStateCache:=state.NewDatabase(toDB)
-	toState, err := state.NewEmpty(root,toStateCache)
+	toStateCache := state.NewDatabase(toDB)
+	toState, err := state.NewEmpty(root, toStateCache)
 	if err != nil {
 		fmt.Println("toState", root.Hex(), err)
 		return err
@@ -215,7 +215,7 @@ func copyStateRoot(root common.Hash) error {
 		fmt.Println("To State commit err", err)
 		return err
 	}
-	toStateCache.TrieDB().Commit(newRoot,false)
+	toStateCache.TrieDB().Commit(newRoot, false)
 	fmt.Println(time.Now(), "from Root", root.Hex(), "to root", newRoot.Hex())
 	if root != newRoot {
 		return errors.New("Fail compare 2 state root")
@@ -232,9 +232,10 @@ func copyStateData(fromState *state.StateDB, toState *state.StateDB, addr common
 	if fromCode != nil {
 		toObject.SetCode(crypto.Keccak256Hash(fromCode), fromCode)
 		fromState.ForEachStorageAndCheck(addr, func(key, value common.Hash) bool {
-			toState.SetState(addr, key, value)
+			toObject.SetState(toState.Database(), key, value)
 			return true
 		})
+		toState.Commit(true)
 	}
 }
 
