@@ -226,6 +226,7 @@ func copyStateData(root common.Hash, checkAddr bool) error {
 }
 func putToDataCopy(key []byte, value []byte) {
 	count++
+	batch.Put(key,value)
 	if count%1000 == 0 {
 		err := batch.Write()
 		count = 0
