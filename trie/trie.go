@@ -142,7 +142,7 @@ func (t *Trie) Get(key []byte) []byte {
 // If a node was not found in the database, a MissingNodeError is returned.
 func (t *Trie) TryGet(key []byte) ([]byte, error) {
 	key = keybytesToHex(key)
-	value, _, _, err := t.tryGet(t.root, key, 0)
+	value, err := t.tryGetNotCache(t.root, key, 0)
 	//if err == nil && didResolve {
 	//	t.root = newroot
 	//}
@@ -182,6 +182,34 @@ func (t *Trie) tryGet(origNode Node, key []byte, pos int) (value []byte, newnode
 		}
 		value, newnode, _, err := t.tryGet(child, key, pos)
 		return value, newnode, true, err
+	default:
+		panic(fmt.Sprintf("%T: invalid node: %v", origNode, origNode))
+	}
+}
+
+func (t *Trie) tryGetNotCache(origNode Node, key []byte, pos int) (value []byte, err error) {
+	switch n := (origNode).(type) {
+	case nil:
+		return nil, nil
+	case ValueNode:
+		return n, nil
+	case *ShortNode:
+		if len(key)-pos < len(n.Key) || !bytes.Equal(n.Key, key[pos:pos+len(n.Key)]) {
+			// key not found in trie
+			return nil, nil
+		}
+		value, err = t.tryGetNotCache(n.Val, key, pos+len(n.Key))
+		return value, err
+	case *FullNode:
+		value, err = t.tryGetNotCache(n.Children[key[pos]], key, pos+1)
+		return value, err
+	case HashNode:
+		child, err := t.resolveHash(n, key[:pos])
+		if err != nil {
+			return nil, err
+		}
+		value, err := t.tryGetNotCache(child, key, pos)
+		return value, err
 	default:
 		panic(fmt.Sprintf("%T: invalid node: %v", origNode, origNode))
 	}
