@@ -57,8 +57,7 @@ func main() {
 		fmt.Println("fromState", *root, err)
 		return
 	}
-	toStateCache := state.NewDatabase(toDB)
-	toState, err := state.NewEmpty(common.HexToHash(*root), toStateCache)
+	toState, err := state.New(common.HexToHash(*root), state.NewDatabase(toDB))
 	if err != nil {
 		fmt.Println("toState", err)
 		return

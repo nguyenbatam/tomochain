@@ -260,7 +260,9 @@ func processNode(n trie.Node, path []byte, checkAddr bool,log bool) error {
 				if err != nil {
 					return err
 				}
-				putToDataCopy(keyDB, valueDB)
+				if keyDB != nil {
+					putToDataCopy(keyDB, valueDB)
+				}
 			}
 		}
 	case *trie.ShortNode:
