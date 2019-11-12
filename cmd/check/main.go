@@ -79,18 +79,21 @@ func main() {
 		byteFrom, err := rlp.EncodeToBytes(objectFrom)
 		if err != nil {
 			fmt.Println("objectFrom", err)
+			return
 		}
 		objectTo := toState.GetStateObjectNotCache(addr)
 		if objectTo == nil {
-			fmt.Println("Fail when get 2 address ", addr.Hex(), objectFrom, objectTo)
+			fmt.Println("Fail when get 2 address ", addr.Hex(), toState.Error(), objectFrom, objectTo)
+			return
 		}
 		byteTo, err := rlp.EncodeToBytes(objectTo)
 		if err != nil {
 			fmt.Println("objectTo", err)
+			return
 		}
 
 		if bytes.Compare(byteFrom, byteTo) != 0 {
-			fmt.Println("Fail when compare 2 address ", addr.Hex(), common.Bytes2Hex(byteFrom), common.Bytes2Hex(byteTo))
+			fmt.Println("Fail when compare 2 address ", addr.Hex(), toState.Error(), common.Bytes2Hex(byteFrom), common.Bytes2Hex(byteTo))
 			break
 		}
 		fmt.Println("addr", addr.Hex())
