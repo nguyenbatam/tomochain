@@ -115,7 +115,19 @@ func main() {
 			return
 		}
 		fromState, err := fromBC.StateAt(lastestRoot)
-		dataRoot := fromState.GetStateObjectNotCache(common.HexToAddress(*addr)).Root()
+		fromObject:=fromState.GetStateObjectNotCache(common.HexToAddress(*addr))
+		dataRoot := fromObject.Root()
+		toStateCache := state.NewDatabase(toDB)
+		toState, err := state.NewEmpty(lastestRoot, toStateCache)
+		toObject:=toState.NewObject(common.HexToAddress(*addr))
+		toObject.SetNonce(fromObject.Nonce())
+		toObject.SetBalance(fromObject.Balance())
+		fromCode := fromObject.Code(fromState.Database())
+		if fromCode != nil {
+			toObject.SetCode(crypto.Keccak256Hash(fromCode), fromCode)
+		}
+		root,_:=toState.Commit(true)
+		toStateCache.TrieDB().Commit(root,false)
 		err = copyStateData(dataRoot, false)
 		if err != nil {
 			fmt.Println("copyState Address datRoot", dataRoot.Hex(), "err", err)
