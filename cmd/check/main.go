@@ -68,10 +68,16 @@ func main() {
 	defer f.Close()
 
 	scanner := bufio.NewScanner(f)
+	i := 0
 	for scanner.Scan() {
 		addr := common.HexToAddress(scanner.Text())
 		if !checkAddress(addr, fromState, toState) {
 			fmt.Println(addr.Hex())
+		}
+		i++
+		if i%1000 == 0 {
+			fmt.Println(i, addr.Hex())
+			i = 1
 		}
 	}
 	if err := scanner.Err(); err != nil {
@@ -100,12 +106,8 @@ func checkAddress(addr common.Address, fromState *state.StateDB, toState *state.
 		return false
 	}
 	check := fromState.ForEachStorageAndCheck(addr, func(key, value common.Hash) bool {
-		value = fromState.GetStateNotCache(addr, key)
-		toObject := toState.GetStateObjectNotCache(addr)
-		if toObject == nil {
-			return false
-		}
-		toValue := toObject.GetStateNotCache(toState.Database(), key)
+		value = objectFrom.GetStateNotCache(fromState.Database(), key)
+		toValue := objectTo.GetStateNotCache(toState.Database(), key)
 		if bytes.Compare(toValue.Bytes(), value.Bytes()) != 0 {
 			return false
 		}
