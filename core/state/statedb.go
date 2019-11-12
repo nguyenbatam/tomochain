@@ -260,7 +260,7 @@ func (self *StateDB) GetState(addr common.Address, bhash common.Hash) common.Has
 }
 
 func (self *StateDB) GetStateNotCache(addr common.Address, bhash common.Hash) common.Hash {
-	stateObject := self.getStateObject(addr)
+	stateObject := self.GetStateObjectNotCache(addr)
 	if stateObject != nil {
 		return stateObject.GetStateNotCache(self.db, bhash)
 	}
