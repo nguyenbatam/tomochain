@@ -210,7 +210,7 @@ func copyStateData(root common.Hash, checkAddr bool) error {
 	if err != nil {
 		return err
 	}
-	err = processNode(rootNode, nil, checkAddr)
+	err = processNode(rootNode, nil, checkAddr,false)
 	if err != nil {
 		return err
 	}
@@ -237,7 +237,7 @@ func putToDataCopy(key []byte, value []byte) {
 		batch.Reset()
 	}
 }
-func processNode(n trie.Node, path []byte, checkAddr bool) error {
+func processNode(n trie.Node, path []byte, checkAddr bool,log bool) error {
 	switch node := n.(type) {
 	case *trie.FullNode:
 		// Full Node, move to the first non-nil child.
@@ -265,7 +265,7 @@ func processNode(n trie.Node, path []byte, checkAddr bool) error {
 						return nil
 					}
 				}
-				err = processNode(childNode, append(path, byte(i)), checkAddr)
+				err = processNode(childNode, append(path, byte(i)), checkAddr,log)
 				if err != nil {
 					return err
 				}
@@ -295,7 +295,7 @@ func processNode(n trie.Node, path []byte, checkAddr bool) error {
 				return nil
 			}
 		}
-		err = processNode(childNode, append(path, node.Key...), checkAddr)
+		err = processNode(childNode, append(path, node.Key...), checkAddr,log)
 		if err != nil {
 			return err
 		}
@@ -303,17 +303,17 @@ func processNode(n trie.Node, path []byte, checkAddr bool) error {
 			putToDataCopy(keyDB, valueDB)
 		}
 	case trie.ValueNode:
-		//if len(*addr) > 0 {
-		//	keyDB := append(sercureKey, hexToKeybytes(path)...)
-		//	valueDB, err := fromDB.Get(keyDB)
-		//	if err != nil {
-		//		fmt.Println("Not found key ", common.Bytes2Hex(keyDB))
-		//		return err
-		//	}
-		//	key := common.Bytes2Hex(valueDB)
-		//	fmt.Println("find key ", key, "path", common.Bytes2Hex(path), " => ", common.Bytes2Hex(keybytesToHex(hashKey(valueDB))))
-		//	//putToDataCopy(keyDB, valueDB)
-		//}
+		if log {
+			keyDB := append(sercureKey, hexToKeybytes(path)...)
+			valueDB, err := fromDB.Get(keyDB)
+			if err != nil {
+				fmt.Println("Not found key ", common.Bytes2Hex(keyDB))
+				return err
+			}
+			key := common.Bytes2Hex(valueDB)
+			fmt.Println("find key ", key, "path", common.Bytes2Hex(path), " => ", common.Bytes2Hex(keybytesToHex(hashKey(valueDB))))
+			//putToDataCopy(keyDB, valueDB)
+		}
 		if checkAddr {
 			var data state.Account
 			if err := rlp.DecodeBytes(node, &data); err != nil {
@@ -332,7 +332,11 @@ func processNode(n trie.Node, path []byte, checkAddr bool) error {
 				if err != nil {
 					return err
 				}
-				err = processNode(newNode, nil, false)
+				if common.Bytes2Hex(path)=="070f0307080a0f010d09020206080d04060e080c030a09020a0f070b070e090b080604050a060502020d090e0608030c0c0d05000c0a03060706000200040d0710" {
+					err = processNode(newNode, nil, false,true)
+				}else {
+					err = processNode(newNode, nil, false,false)
+				}
 				if err != nil {
 					return err
 				}
