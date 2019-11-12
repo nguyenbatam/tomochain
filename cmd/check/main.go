@@ -73,11 +73,17 @@ func main() {
 	for scanner.Scan() {
 		addr := common.HexToAddress(scanner.Text())
 		objectFrom := fromState.GetStateObjectNotCache(addr)
+		if objectFrom == nil {
+			continue
+		}
 		byteFrom, err := rlp.EncodeToBytes(objectFrom)
 		if err != nil {
 			fmt.Println("objectFrom", err)
 		}
 		objectTo := toState.GetStateObjectNotCache(addr)
+		if objectTo == nil {
+			fmt.Println("Fail when get 2 address ", addr.Hex(), objectFrom, objectTo)
+		}
 		byteTo, err := rlp.EncodeToBytes(objectTo)
 		if err != nil {
 			fmt.Println("objectTo", err)

@@ -256,15 +256,6 @@ func processNode(n trie.Node, path []byte, checkAddr bool,log bool) error {
 					fmt.Println("resolveHash", err, node, path, checkAddr)
 					return err
 				}
-				if keyDB != nil {
-					exist, err := toDB.LDB().Has(keyDB, nil)
-					if err != nil {
-						return err
-					}
-					if exist {
-						return nil
-					}
-				}
 				err = processNode(childNode, append(path, byte(i)), checkAddr,log)
 				if err != nil {
 					return err
@@ -285,15 +276,6 @@ func processNode(n trie.Node, path []byte, checkAddr bool,log bool) error {
 		if err != nil {
 			fmt.Println("resolveHash", err, node, path, checkAddr)
 			return err
-		}
-		if keyDB != nil {
-			exist, err := toDB.LDB().Has(keyDB, nil)
-			if err != nil {
-				return err
-			}
-			if exist {
-				return nil
-			}
 		}
 		err = processNode(childNode, append(path, node.Key...), checkAddr,log)
 		if err != nil {
@@ -321,13 +303,6 @@ func processNode(n trie.Node, path []byte, checkAddr bool,log bool) error {
 				return err
 			}
 			if !common.EmptyHash(data.Root) && data.Root != emptyRoot && data.Root != emptyState {
-				exist, err := toDB.LDB().Has(data.Root[:], nil)
-				if err != nil {
-					return err
-				}
-				if exist {
-					return nil
-				}
 				newNode, valueDB, err := resolveHash(data.Root[:], fromDB.LDB())
 				if err != nil {
 					return err
