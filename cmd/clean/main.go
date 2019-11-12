@@ -12,6 +12,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/crypto/sha3"
 	"github.com/ethereum/go-ethereum/eth"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/rlp"
@@ -422,9 +423,9 @@ type hasher struct {
 }
 
 func newHasher(cachegen, cachelimit uint16) *hasher {
-	h := hasher{}
+	h := &hasher{tmp: new(bytes.Buffer), sha: sha3.NewKeccak256()}
 	h.cachegen, h.cachelimit = cachegen, cachelimit
-	return &h
+	return h
 }
 
 func hashKey(key []byte) []byte {
