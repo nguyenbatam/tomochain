@@ -271,6 +271,7 @@ func findAddress(n trie.Node, path []byte, pos int) error {
 		var valueDB []byte
 		var keyDB []byte
 		if _, ok := childNode.(trie.HashNode); ok {
+			fmt.Println("childNode",childNode)
 			keyDB = childNode.(trie.HashNode)
 			childNode, valueDB, err = resolveHash(keyDB, fromDB.LDB())
 		}
@@ -291,6 +292,7 @@ func findAddress(n trie.Node, path []byte, pos int) error {
 		var err error = nil
 		var valueDB []byte
 		var keyDB []byte
+		fmt.Println("childNode",node.Val)
 		if _, ok := node.Val.(trie.HashNode); ok {
 			keyDB = node.Val.(trie.HashNode)
 			childNode, valueDB, err = resolveHash(keyDB, fromDB.LDB())
