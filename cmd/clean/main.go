@@ -10,7 +10,6 @@ import (
 	"github.com/ethereum/go-ethereum/consensus/posv"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/state"
-	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/crypto/sha3"
 	"github.com/ethereum/go-ethereum/eth"
@@ -109,17 +108,9 @@ func main() {
 		return
 	}
 	if len(*addr) > 0 {
-		fromBC, err := core.NewBlockChain(fromDB, nil, nil, nil, vm.Config{})
+		err = copyAddressData(common.HexToAddress(*addr), lastestRoot)
 		if err != nil {
-			fmt.Println("fromBC", err)
-			return
-		}
-		fromState, err := fromBC.StateAt(lastestRoot)
-		fromObject := fromState.GetStateObjectNotCache(common.HexToAddress(*addr))
-		dataRoot := fromObject.Root()
-		err = copyStateData(dataRoot, false)
-		if err != nil {
-			fmt.Println("copyState Address dataRoot", dataRoot.Hex(), "err", err)
+			fmt.Println("copyState Address dataRoot", *addr, lastestRoot.Hex(), "err", err)
 			return
 		}
 	} else {
@@ -210,11 +201,44 @@ func copyStateData(root common.Hash, checkAddr bool) error {
 	if err != nil {
 		return err
 	}
-	err = processNode(rootNode, nil, checkAddr,false)
+	err = processNode(rootNode, nil, checkAddr, false)
 	if err != nil {
 		return err
 	}
 	err = toDB.LDB().Put(root[:], valueDB, nil)
+	if err != nil {
+		return err
+	}
+	err = batch.Write()
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func copyAddressData(addr common.Address, lastestRoot common.Hash) error {
+	fmt.Println(time.Now(), "run copy address data ", "root", lastestRoot.Hex())
+	fromState, err := state.New(lastestRoot, state.NewDatabase(fromDB))
+	fromObject := fromState.GetStateObjectNotCache(addr)
+
+	dataRoot := fromObject.Root()
+	batch = toDB.NewBatch()
+	rootNode, valueDB, err := resolveHash(dataRoot[:], fromDB.LDB())
+	if err != nil {
+		return err
+	}
+	path := keybytesToHex(hashKey(addr.Bytes()))
+	err = findAddress(rootNode, path, 0)
+	if err != nil {
+		return err
+	}
+	err = toDB.LDB().Put(dataRoot[:], valueDB, nil)
+
+	_, valueDB, err = resolveHash(lastestRoot[:], fromDB.LDB())
+	if err != nil {
+		return err
+	}
+	err = toDB.LDB().Put(lastestRoot[:], valueDB, nil)
 	if err != nil {
 		return err
 	}
@@ -237,7 +261,84 @@ func putToDataCopy(key []byte, value []byte) {
 		batch.Reset()
 	}
 }
-func processNode(n trie.Node, path []byte, checkAddr bool,log bool) error {
+func findAddress(n trie.Node, path []byte, pos int) error {
+	switch node := n.(type) {
+	case *trie.FullNode:
+		// Full Node, move to the first non-nil child.
+		childNode := node.Children[path[pos]]
+		var err error = nil
+		var valueDB []byte
+		var keyDB []byte
+		if _, ok := childNode.(trie.HashNode); ok {
+			keyDB = childNode.(trie.HashNode)
+			childNode, valueDB, err = resolveHash(keyDB, fromDB.LDB())
+		}
+		if err != nil {
+			fmt.Println("resolveHash", err, node, path)
+			return err
+		}
+		err = findAddress(childNode, path, pos+1)
+		if err != nil {
+			return err
+		}
+		if keyDB != nil {
+			putToDataCopy(keyDB, valueDB)
+		}
+	case *trie.ShortNode:
+		// Short Node, return the pointer singleton child
+		childNode := node.Val
+		var err error = nil
+		var valueDB []byte
+		var keyDB []byte
+		if _, ok := node.Val.(trie.HashNode); ok {
+			keyDB = node.Val.(trie.HashNode)
+			childNode, valueDB, err = resolveHash(keyDB, fromDB.LDB())
+		}
+		if err != nil {
+			fmt.Println("resolveHash", err, node, path)
+			return err
+		}
+		err = findAddress(childNode, path, pos+len(node.Key))
+		if err != nil {
+			return err
+		}
+		if keyDB != nil {
+			putToDataCopy(keyDB, valueDB)
+		}
+	case trie.ValueNode:
+
+		keyDB := append(sercureKey, hexToKeybytes(path)...)
+		valueDB, err := fromDB.Get(keyDB)
+		if err != nil {
+			fmt.Println("Not found key ", common.Bytes2Hex(keyDB))
+			return err
+		}
+		key := common.Bytes2Hex(valueDB)
+		fmt.Println("find key ", key, "path", common.Bytes2Hex(path), " => ", common.Bytes2Hex(keybytesToHex(hashKey(valueDB))))
+		//putToDataCopy(keyDB, valueDB)
+
+		var data state.Account
+		if err := rlp.DecodeBytes(node, &data); err != nil {
+			fmt.Println("Failed to decode state object", "path", common.Bytes2Hex(path), "value", common.Bytes2Hex(node))
+			return err
+		}
+		if !common.EmptyHash(data.Root) && data.Root != emptyRoot && data.Root != emptyState {
+			newNode, valueDB, err := resolveHash(data.Root[:], fromDB.LDB())
+			if err != nil {
+				return err
+			}
+			err = processNode(newNode, nil, false, true)
+			if err != nil {
+				return err
+			}
+			putToDataCopy(data.Root[:], valueDB)
+		}
+	default:
+		fmt.Println("invalid Node", node, common.Bytes2Hex(path))
+	}
+	return nil
+}
+func processNode(n trie.Node, path []byte, checkAddr bool, log bool) error {
 	switch node := n.(type) {
 	case *trie.FullNode:
 		// Full Node, move to the first non-nil child.
@@ -256,7 +357,7 @@ func processNode(n trie.Node, path []byte, checkAddr bool,log bool) error {
 					fmt.Println("resolveHash", err, node, path, checkAddr)
 					return err
 				}
-				err = processNode(childNode, append(path, byte(i)), checkAddr,log)
+				err = processNode(childNode, append(path, byte(i)), checkAddr, log)
 				if err != nil {
 					return err
 				}
@@ -279,7 +380,7 @@ func processNode(n trie.Node, path []byte, checkAddr bool,log bool) error {
 			fmt.Println("resolveHash", err, node, path, checkAddr)
 			return err
 		}
-		err = processNode(childNode, append(path, node.Key...), checkAddr,log)
+		err = processNode(childNode, append(path, node.Key...), checkAddr, log)
 		if err != nil {
 			return err
 		}
@@ -309,10 +410,10 @@ func processNode(n trie.Node, path []byte, checkAddr bool,log bool) error {
 				if err != nil {
 					return err
 				}
-				if common.Bytes2Hex(path)=="070f0307080a0f010d09020206080d04060e080c030a09020a0f070b070e090b080604050a060502020d090e0608030c0c0d05000c0a03060706000200040d0710" {
-					err = processNode(newNode, nil, false,true)
-				}else {
-					err = processNode(newNode, nil, false,false)
+				if common.Bytes2Hex(path) == "070f0307080a0f010d09020206080d04060e080c030a09020a0f070b070e090b080604050a060502020d090e0608030c0c0d05000c0a03060706000200040d0710" {
+					err = processNode(newNode, nil, false, true)
+				} else {
+					err = processNode(newNode, nil, false, false)
 				}
 				if err != nil {
 					return err
