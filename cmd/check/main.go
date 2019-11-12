@@ -68,16 +68,10 @@ func main() {
 	defer f.Close()
 
 	scanner := bufio.NewScanner(f)
-	i := 0
 	for scanner.Scan() {
 		addr := common.HexToAddress(scanner.Text())
 		if !checkAddress(addr, fromState, toState) {
 			fmt.Println(addr.Hex())
-		}
-		i++
-		if i%1000 == 0 {
-			fmt.Println(i, addr.Hex())
-			i = 1
 		}
 	}
 	if err := scanner.Err(); err != nil {
