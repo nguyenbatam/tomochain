@@ -218,23 +218,13 @@ func copyStateData(root common.Hash, checkAddr bool) error {
 
 func copyAddressData(addr common.Address, lastestRoot common.Hash) error {
 	fmt.Println(time.Now(), "run copy address data ", "root", lastestRoot.Hex())
-	fromState, err := state.New(lastestRoot, state.NewDatabase(fromDB))
-	fromObject := fromState.GetStateObjectNotCache(addr)
-
-	dataRoot := fromObject.Root()
 	batch = toDB.NewBatch()
-	rootNode, valueDB, err := resolveHash(dataRoot[:], fromDB.LDB())
+	rootNode, valueDB, err := resolveHash(lastestRoot[:], fromDB.LDB())
 	if err != nil {
 		return err
 	}
 	path := keybytesToHex(hashKey(addr.Bytes()))
 	err = findAddress(rootNode, path, 0)
-	if err != nil {
-		return err
-	}
-	err = toDB.LDB().Put(dataRoot[:], valueDB, nil)
-
-	_, valueDB, err = resolveHash(lastestRoot[:], fromDB.LDB())
 	if err != nil {
 		return err
 	}
@@ -271,7 +261,7 @@ func findAddress(n trie.Node, path []byte, pos int) error {
 		var valueDB []byte
 		var keyDB []byte
 		if _, ok := childNode.(trie.HashNode); ok {
-			fmt.Println("childNode",childNode)
+			fmt.Println("childNode", childNode)
 			keyDB = childNode.(trie.HashNode)
 			childNode, valueDB, err = resolveHash(keyDB, fromDB.LDB())
 		}
@@ -292,7 +282,7 @@ func findAddress(n trie.Node, path []byte, pos int) error {
 		var err error = nil
 		var valueDB []byte
 		var keyDB []byte
-		fmt.Println("childNode",node.Val)
+		fmt.Println("childNode", node.Val)
 		if _, ok := node.Val.(trie.HashNode); ok {
 			keyDB = node.Val.(trie.HashNode)
 			childNode, valueDB, err = resolveHash(keyDB, fromDB.LDB())
