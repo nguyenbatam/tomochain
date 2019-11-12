@@ -225,18 +225,16 @@ func copyStateData(root common.Hash, checkAddr bool) error {
 	return nil
 }
 func putToDataCopy(key []byte, value []byte) {
-	fmt.Println("putToDataCopy", common.Bytes2Hex(key))
-	toDB.Put(key, value)
 	count++
-	//if count%1000 == 0 {
-	//	err := batch.Write()
-	//	count = 0
-	//	if err != nil {
-	//		fmt.Println("Error when put data to copy db")
-	//		panic(err)
-	//	}
-	//	batch.Reset()
-	//}
+	if count%1000 == 0 {
+		err := batch.Write()
+		count = 0
+		if err != nil {
+			fmt.Println("Error when put data to copy db")
+			panic(err)
+		}
+		batch.Reset()
+	}
 }
 func processNode(n trie.Node, path []byte, checkAddr bool) error {
 	switch node := n.(type) {
@@ -263,7 +261,6 @@ func processNode(n trie.Node, path []byte, checkAddr bool) error {
 							return nil
 						}
 					}
-					fmt.Println("processNode", common.Bytes2Hex(keyDB), childNode, common.Bytes2Hex(append(path, byte(i))))
 					err = processNode(childNode, append(path, byte(i)), checkAddr)
 					if err != nil {
 						return err
@@ -298,7 +295,6 @@ func processNode(n trie.Node, path []byte, checkAddr bool) error {
 					return nil
 				}
 			}
-			fmt.Println("processNode", common.Bytes2Hex(keyDB), childNode, common.Bytes2Hex(append(path, node.Key...)))
 			err = processNode(childNode, append(path, node.Key...), checkAddr)
 			if err != nil {
 				return err
@@ -314,17 +310,17 @@ func processNode(n trie.Node, path []byte, checkAddr bool) error {
 			fmt.Println("MissingNodeError", node, path, checkAddr)
 		}
 	case trie.ValueNode:
-		if len(*addr) > 0 {
-			keyDB := append(sercureKey, hexToKeybytes(path)...)
-			valueDB, err := fromDB.Get(keyDB)
-			if err != nil {
-				fmt.Println("Not found key ", common.Bytes2Hex(keyDB))
-				return err
-			}
-			key := common.Bytes2Hex(valueDB)
-			fmt.Println("find key ", key, "path", common.Bytes2Hex(path), " => ", common.Bytes2Hex(keybytesToHex(hashKey(valueDB))))
-			//putToDataCopy(keyDB, valueDB)
-		}
+		//if len(*addr) > 0 {
+		//	keyDB := append(sercureKey, hexToKeybytes(path)...)
+		//	valueDB, err := fromDB.Get(keyDB)
+		//	if err != nil {
+		//		fmt.Println("Not found key ", common.Bytes2Hex(keyDB))
+		//		return err
+		//	}
+		//	key := common.Bytes2Hex(valueDB)
+		//	fmt.Println("find key ", key, "path", common.Bytes2Hex(path), " => ", common.Bytes2Hex(keybytesToHex(hashKey(valueDB))))
+		//	//putToDataCopy(keyDB, valueDB)
+		//}
 		if checkAddr {
 			var data state.Account
 			if err := rlp.DecodeBytes(node, &data); err != nil {
