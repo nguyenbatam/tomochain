@@ -143,7 +143,7 @@ func main() {
 		fmt.Println("toState", err)
 		return
 	}
-	fmt.Println(toState.GetState(common.HexToAddress(*addr), common.HexToHash("c2a502b79558b1280105b2908755f834b74ce8132f5c60ca9a41d65019ee82e2")).Hex())
+	fmt.Println(toState.GetStateNotCache(common.HexToAddress(*addr), common.HexToHash("c2a502b79558b1280105b2908755f834b74ce8132f5c60ca9a41d65019ee82e2")).Hex())
 }
 func copyHeadData() error {
 	fmt.Println(time.Now(), "copyHeadData")
