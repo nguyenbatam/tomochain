@@ -252,7 +252,6 @@ func putToDataCopy(key []byte, value []byte) {
 	}
 }
 func findAddress(n trie.Node, path []byte, pos int) error {
-	fmt.Println("find Address", pos, common.Bytes2Hex(path), n)
 	switch node := n.(type) {
 	case *trie.FullNode:
 		// Full Node, move to the first non-nil child.
@@ -261,7 +260,6 @@ func findAddress(n trie.Node, path []byte, pos int) error {
 		var valueDB []byte
 		var keyDB []byte
 		if _, ok := childNode.(trie.HashNode); ok {
-			fmt.Println("childNode", childNode)
 			keyDB = childNode.(trie.HashNode)
 			childNode, valueDB, err = resolveHash(keyDB, fromDB.LDB())
 		}
@@ -282,7 +280,6 @@ func findAddress(n trie.Node, path []byte, pos int) error {
 		var err error = nil
 		var valueDB []byte
 		var keyDB []byte
-		fmt.Println("childNode", node.Val)
 		if _, ok := node.Val.(trie.HashNode); ok {
 			keyDB = node.Val.(trie.HashNode)
 			childNode, valueDB, err = resolveHash(keyDB, fromDB.LDB())
@@ -300,14 +297,14 @@ func findAddress(n trie.Node, path []byte, pos int) error {
 		}
 	case trie.ValueNode:
 
-		keyDB := append(sercureKey, hexToKeybytes(path)...)
-		valueDB, err := fromDB.Get(keyDB)
-		if err != nil {
-			fmt.Println("Not found key ", common.Bytes2Hex(keyDB))
-			return err
-		}
-		key := common.Bytes2Hex(valueDB)
-		fmt.Println("find key ", key, "path", common.Bytes2Hex(path), " => ", common.Bytes2Hex(keybytesToHex(hashKey(valueDB))))
+		//keyDB := append(sercureKey, hexToKeybytes(path)...)
+		//valueDB, err := fromDB.Get(keyDB)
+		//if err != nil {
+		//	fmt.Println("Not found key ", common.Bytes2Hex(keyDB))
+		//	return err
+		//}
+		//key := common.Bytes2Hex(valueDB)
+		//fmt.Println("find key ", key, "path", common.Bytes2Hex(path), " => ", common.Bytes2Hex(keybytesToHex(hashKey(valueDB))))
 		//putToDataCopy(keyDB, valueDB)
 
 		var data state.Account
