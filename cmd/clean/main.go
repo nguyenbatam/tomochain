@@ -115,7 +115,7 @@ func main() {
 			return
 		}
 		fromState, err := fromBC.StateAt(lastestRoot)
-		fromObject:=fromState.GetStateObjectNotCache(common.HexToAddress(*addr))
+		fromObject := fromState.GetStateObjectNotCache(common.HexToAddress(*addr))
 		dataRoot := fromObject.Root()
 		err = copyStateData(dataRoot, false)
 		if err != nil {
@@ -226,7 +226,7 @@ func copyStateData(root common.Hash, checkAddr bool) error {
 }
 func putToDataCopy(key []byte, value []byte) {
 	count++
-	batch.Put(key,value)
+	batch.Put(key, value)
 	if count%1000 == 0 {
 		err := batch.Write()
 		count = 0
@@ -252,28 +252,24 @@ func processNode(n trie.Node, path []byte, checkAddr bool) error {
 					keyDB = child.(trie.HashNode)
 					childNode, valueDB, err = resolveHash(keyDB, fromDB.LDB())
 				}
-				if err == nil {
-					if keyDB != nil {
-						exist, err := toDB.LDB().Has(keyDB, nil)
-						if err != nil {
-							return err
-						}
-						if exist {
-							return nil
-						}
-					}
-					err = processNode(childNode, append(path, byte(i)), checkAddr)
+				if err != nil {
+					fmt.Println("resolveHash", err, node, path, checkAddr)
+					return err
+				}
+				if keyDB != nil {
+					exist, err := toDB.LDB().Has(keyDB, nil)
 					if err != nil {
 						return err
 					}
-					putToDataCopy(keyDB, valueDB)
-				} else if err != nil {
-					_, ok := err.(*trie.MissingNodeError)
-					if !ok {
-						return err
+					if exist {
+						return nil
 					}
-					fmt.Println("MissingNodeError", node, path, checkAddr)
 				}
+				err = processNode(childNode, append(path, byte(i)), checkAddr)
+				if err != nil {
+					return err
+				}
+				putToDataCopy(keyDB, valueDB)
 			}
 		}
 	case *trie.ShortNode:
@@ -286,29 +282,25 @@ func processNode(n trie.Node, path []byte, checkAddr bool) error {
 			keyDB = node.Val.(trie.HashNode)
 			childNode, valueDB, err = resolveHash(keyDB, fromDB.LDB())
 		}
-		if err == nil {
-			if keyDB != nil {
-				exist, err := toDB.LDB().Has(keyDB, nil)
-				if err != nil {
-					return err
-				}
-				if exist {
-					return nil
-				}
-			}
-			err = processNode(childNode, append(path, node.Key...), checkAddr)
+		if err != nil {
+			fmt.Println("resolveHash", err, node, path, checkAddr)
+			return err
+		}
+		if keyDB != nil {
+			exist, err := toDB.LDB().Has(keyDB, nil)
 			if err != nil {
 				return err
 			}
-			if keyDB != nil {
-				putToDataCopy(keyDB, valueDB)
+			if exist {
+				return nil
 			}
-		} else if err != nil {
-			_, ok := err.(*trie.MissingNodeError)
-			if !ok {
-				return err
-			}
-			fmt.Println("MissingNodeError", node, path, checkAddr)
+		}
+		err = processNode(childNode, append(path, node.Key...), checkAddr)
+		if err != nil {
+			return err
+		}
+		if keyDB != nil {
+			putToDataCopy(keyDB, valueDB)
 		}
 	case trie.ValueNode:
 		//if len(*addr) > 0 {
