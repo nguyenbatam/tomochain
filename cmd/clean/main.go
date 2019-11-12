@@ -262,6 +262,7 @@ func putToDataCopy(key []byte, value []byte) {
 	}
 }
 func findAddress(n trie.Node, path []byte, pos int) error {
+	fmt.Println("find Address", pos, common.Bytes2Hex(path), n)
 	switch node := n.(type) {
 	case *trie.FullNode:
 		// Full Node, move to the first non-nil child.
