@@ -72,12 +72,12 @@ func main() {
 	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
 		addr := common.HexToAddress(scanner.Text())
-		objectFrom := fromState.GetOrNewStateObject(addr)
+		objectFrom := fromState.GetStateObjectNotCache(addr)
 		byteFrom, err := rlp.EncodeToBytes(objectFrom)
 		if err != nil {
 			fmt.Println("objectFrom", err)
 		}
-		objectTo := toState.GetOrNewStateObject(addr)
+		objectTo := toState.GetStateObjectNotCache(addr)
 		byteTo, err := rlp.EncodeToBytes(objectTo)
 		if err != nil {
 			fmt.Println("objectTo", err)
