@@ -174,6 +174,7 @@ func (self *stateObject) GetState(db Database, key common.Hash) common.Hash {
 	if exists {
 		return value
 	}
+	fmt.Println("GetState",key.Hex())
 	// Load from DB in case it is missing.
 	enc, err := self.getTrie(db).TryGet(key[:])
 	if err != nil {
