@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -17,6 +18,7 @@ import (
 	"github.com/ethereum/go-ethereum/trie"
 	"github.com/syndtr/goleveldb/leveldb"
 	"github.com/syndtr/goleveldb/leveldb/util"
+	"hash"
 	"runtime"
 	"time"
 )
@@ -140,7 +142,7 @@ func main() {
 		fmt.Println("toState", err)
 		return
 	}
-	fmt.Println(toState.GetState(common.HexToAddress(*addr),common.HexToHash("c2a502b79558b1280105b2908755f834b74ce8132f5c60ca9a41d65019ee82e2")).Hex())
+	fmt.Println(toState.GetState(common.HexToAddress(*addr), common.HexToHash("c2a502b79558b1280105b2908755f834b74ce8132f5c60ca9a41d65019ee82e2")).Hex())
 }
 func copyHeadData() error {
 	fmt.Println(time.Now(), "copyHeadData")
@@ -229,7 +231,7 @@ func copyStateData(root common.Hash, checkAddr bool) error {
 	return nil
 }
 func putToDataCopy(key []byte, value []byte) {
-	fmt.Println("putToDataCopy",common.Bytes2Hex(key))
+	fmt.Println("putToDataCopy", common.Bytes2Hex(key))
 	toDB.Put(key, value)
 	count++
 	//if count%1000 == 0 {
@@ -267,7 +269,7 @@ func processNode(n trie.Node, path []byte, checkAddr bool) error {
 							return nil
 						}
 					}
-					fmt.Println("processNode",common.Bytes2Hex(keyDB),childNode,common.Bytes2Hex(append(path, byte(i))))
+					fmt.Println("processNode", common.Bytes2Hex(keyDB), childNode, common.Bytes2Hex(append(path, byte(i))))
 					err = processNode(childNode, append(path, byte(i)), checkAddr)
 					if err != nil {
 						return err
@@ -278,7 +280,7 @@ func processNode(n trie.Node, path []byte, checkAddr bool) error {
 					if !ok {
 						return err
 					}
-					fmt.Println("MissingNodeError",node,path,checkAddr)
+					fmt.Println("MissingNodeError", node, path, checkAddr)
 				}
 			}
 		}
@@ -302,7 +304,7 @@ func processNode(n trie.Node, path []byte, checkAddr bool) error {
 					return nil
 				}
 			}
-			fmt.Println("processNode",common.Bytes2Hex(keyDB),childNode,common.Bytes2Hex(append(path, node.Key...)))
+			fmt.Println("processNode", common.Bytes2Hex(keyDB), childNode, common.Bytes2Hex(append(path, node.Key...)))
 			err = processNode(childNode, append(path, node.Key...), checkAddr)
 			if err != nil {
 				return err
@@ -315,7 +317,7 @@ func processNode(n trie.Node, path []byte, checkAddr bool) error {
 			if !ok {
 				return err
 			}
-			fmt.Println("MissingNodeError",node,path,checkAddr)
+			fmt.Println("MissingNodeError", node, path, checkAddr)
 		}
 	case trie.ValueNode:
 		if len(*addr) > 0 {
@@ -325,7 +327,8 @@ func processNode(n trie.Node, path []byte, checkAddr bool) error {
 				fmt.Println("Not found key ", common.Bytes2Hex(keyDB))
 				return err
 			}
-			fmt.Println("find key ", common.Bytes2Hex(valueDB), "path", common.Bytes2Hex(path))
+			key := common.Bytes2Hex(valueDB)
+			fmt.Println("find key ", key, "path", common.Bytes2Hex(path), " => ", keybytesToHex(hashKey(valueDB)))
 			//putToDataCopy(keyDB, valueDB)
 		}
 		if checkAddr {
@@ -354,7 +357,7 @@ func processNode(n trie.Node, path []byte, checkAddr bool) error {
 			}
 		}
 	default:
-		fmt.Println("invalid Node",node,common.Bytes2Hex(path),checkAddr)
+		fmt.Println("invalid Node", node, common.Bytes2Hex(path), checkAddr)
 	}
 	return nil
 }
@@ -409,4 +412,36 @@ func storeSnapshot(snap *posv.Snapshot, db *ethdb.LDBDatabase) error {
 		return err
 	}
 	return db.Put(append([]byte("posv-"), snap.Hash[:]...), blob)
+}
+
+type hasher struct {
+	tmp        *bytes.Buffer
+	sha        hash.Hash
+	cachegen   uint16
+	cachelimit uint16
+}
+
+func newHasher(cachegen, cachelimit uint16) *hasher {
+	h := hasher{}
+	h.cachegen, h.cachelimit = cachegen, cachelimit
+	return &h
+}
+
+func hashKey(key []byte) []byte {
+	h := newHasher(0, 0)
+	h.sha.Reset()
+	h.sha.Write(key)
+	buf := h.sha.Sum([]byte{})
+	return buf
+}
+
+func keybytesToHex(str []byte) []byte {
+	l := len(str)*2 + 1
+	var nibbles = make([]byte, l)
+	for i, b := range str {
+		nibbles[i*2] = b / 16
+		nibbles[i*2+1] = b % 16
+	}
+	nibbles[l-1] = 16
+	return nibbles
 }
