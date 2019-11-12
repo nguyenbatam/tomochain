@@ -329,7 +329,7 @@ func processNode(n trie.Node, path []byte, checkAddr bool) error {
 				return err
 			}
 			key := common.Bytes2Hex(valueDB)
-			fmt.Println("find key ", key, "path", common.Bytes2Hex(path), " => ", keybytesToHex(hashKey(valueDB)))
+			fmt.Println("find key ", key, "path", common.Bytes2Hex(path), " => ", common.Bytes2Hex(keybytesToHex(hashKey(valueDB))))
 			//putToDataCopy(keyDB, valueDB)
 		}
 		if checkAddr {
