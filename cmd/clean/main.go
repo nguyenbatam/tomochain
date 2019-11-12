@@ -400,11 +400,7 @@ func processNode(n trie.Node, path []byte, checkAddr bool, log bool) error {
 				if err != nil {
 					return err
 				}
-				if common.Bytes2Hex(path) == "070f0307080a0f010d09020206080d04060e080c030a09020a0f070b070e090b080604050a060502020d090e0608030c0c0d05000c0a03060706000200040d0710" {
-					err = processNode(newNode, nil, false, true)
-				} else {
-					err = processNode(newNode, nil, false, false)
-				}
+				err = processNode(newNode, nil, false, false)
 				if err != nil {
 					return err
 				}

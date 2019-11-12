@@ -71,50 +71,46 @@ func main() {
 	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
 		addr := common.HexToAddress(scanner.Text())
-		objectFrom := fromState.GetStateObjectNotCache(addr)
-		if objectFrom == nil {
-			continue
-		}
-		byteFrom, err := rlp.EncodeToBytes(objectFrom)
-		if err != nil {
-			fmt.Println("objectFrom", err)
-			return
-		}
-		objectTo := toState.GetStateObjectNotCache(addr)
-		if objectTo == nil {
-			fmt.Println("Fail when get 2 address ", addr.Hex(), toState.Error(), objectFrom, objectTo)
-			return
-		}
-		byteTo, err := rlp.EncodeToBytes(objectTo)
-		if err != nil {
-			fmt.Println("objectTo", err)
-			return
-		}
-
-		if bytes.Compare(byteFrom, byteTo) != 0 {
-			fmt.Println("Fail when compare 2 address ", addr.Hex(), toState.Error(), common.Bytes2Hex(byteFrom), common.Bytes2Hex(byteTo))
-			break
-		}
-		fmt.Println("addr", addr.Hex())
-		check := fromState.ForEachStorageAndCheck(addr, func(key, value common.Hash) bool {
-			value = fromState.GetStateNotCache(addr, key)
-			toObject := toState.GetStateObjectNotCache(addr)
-			if toObject == nil {
-				fmt.Println("Fail when get state in address ", addr.Hex(), toState.Error())
-				return false
-			}
-			toValue := toObject.GetStateNotCache(toState.Database(), key)
-			if bytes.Compare(toValue.Bytes(), value.Bytes()) != 0 {
-				fmt.Println("Fail when compare 2 state in address ", addr.Hex(), "key", key.Hex(), "decode", value.Hex(), "toValue", toValue.Hex(), "err", toState.Error())
-				return false
-			}
-			return true
-		})
-		if !check {
-			break
+		if checkAddress(addr, fromState, toState) {
+			fmt.Println(addr.Hex())
 		}
 	}
 	if err := scanner.Err(); err != nil {
 		log.Crit("scan", "err", err)
 	}
+}
+func checkAddress(addr common.Address, fromState *state.StateDB, toState *state.StateDB) bool {
+	objectFrom := fromState.GetStateObjectNotCache(addr)
+	if objectFrom == nil {
+		return true
+	}
+	byteFrom, err := rlp.EncodeToBytes(objectFrom)
+	if err != nil {
+		return true
+	}
+	objectTo := toState.GetStateObjectNotCache(addr)
+	if objectTo == nil {
+		return false
+	}
+	byteTo, err := rlp.EncodeToBytes(objectTo)
+	if err != nil {
+		return false
+	}
+
+	if bytes.Compare(byteFrom, byteTo) != 0 {
+		return false
+	}
+	check := fromState.ForEachStorageAndCheck(addr, func(key, value common.Hash) bool {
+		value = fromState.GetStateNotCache(addr, key)
+		toObject := toState.GetStateObjectNotCache(addr)
+		if toObject == nil {
+			return false
+		}
+		toValue := toObject.GetStateNotCache(toState.Database(), key)
+		if bytes.Compare(toValue.Bytes(), value.Bytes()) != 0 {
+			return false
+		}
+		return true
+	})
+	return check
 }
