@@ -198,18 +198,15 @@ func (t *Trie) tryGetNotCache(origNode Node, key []byte, pos int) (value []byte,
 			// key not found in trie
 			return nil, nil
 		}
-		value, err = t.tryGetNotCache(n.Val, key, pos+len(n.Key))
-		return value, err
+		return t.tryGetNotCache(n.Val, key, pos+len(n.Key))
 	case *FullNode:
-		value, err = t.tryGetNotCache(n.Children[key[pos]], key, pos+1)
-		return value, err
+		return t.tryGetNotCache(n.Children[key[pos]], key, pos+1)
 	case HashNode:
 		child, err := t.resolveHash(n, key[:pos])
 		if err != nil {
 			return nil, err
 		}
-		value, err := t.tryGetNotCache(child, key, pos)
-		return value, err
+		return t.tryGetNotCache(child, key, pos)
 	default:
 		panic(fmt.Sprintf("%T: invalid node: %v", origNode, origNode))
 	}
