@@ -117,20 +117,9 @@ func main() {
 		fromState, err := fromBC.StateAt(lastestRoot)
 		fromObject:=fromState.GetStateObjectNotCache(common.HexToAddress(*addr))
 		dataRoot := fromObject.Root()
-		toStateCache := state.NewDatabase(toDB)
-		toState, err := state.NewEmpty(lastestRoot, toStateCache)
-		toObject:=toState.NewObject(common.HexToAddress(*addr))
-		toObject.SetNonce(fromObject.Nonce())
-		toObject.SetBalance(fromObject.Balance())
-		fromCode := fromObject.Code(fromState.Database())
-		if fromCode != nil {
-			toObject.SetCode(crypto.Keccak256Hash(fromCode), fromCode)
-		}
-		root,_:=toState.Commit(true)
-		toStateCache.TrieDB().Commit(root,false)
 		err = copyStateData(dataRoot, false)
 		if err != nil {
-			fmt.Println("copyState Address datRoot", dataRoot.Hex(), "err", err)
+			fmt.Println("copyState Address dataRoot", dataRoot.Hex(), "err", err)
 			return
 		}
 	} else {
@@ -148,14 +137,6 @@ func main() {
 	fmt.Println(time.Now(), "compact")
 	toDB.LDB().CompactRange(util.Range{})
 	fmt.Println(time.Now(), "end")
-	fmt.Println(toDB.Get(common.Hex2Bytes("e504dc6c154e0f07a777b966bd9cee5374965052e98da211ade00fdb5607164d")))
-	toStateCache := state.NewDatabase(toDB)
-	toState, err := state.NewEmpty(lastestRoot, toStateCache)
-	if err != nil {
-		fmt.Println("toState", err)
-		return
-	}
-	fmt.Println(toState.GetStateNotCache(common.HexToAddress(*addr), common.HexToHash("c2a502b79558b1280105b2908755f834b74ce8132f5c60ca9a41d65019ee82e2")).Hex())
 }
 func copyHeadData() error {
 	fmt.Println(time.Now(), "copyHeadData")

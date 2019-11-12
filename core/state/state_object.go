@@ -195,7 +195,6 @@ func (self *stateObject) GetState(db Database, key common.Hash) common.Hash {
 
 // GetState returns a value in account storage.
 func (self *stateObject) GetStateNotCache(db Database, key common.Hash) common.Hash {
-	fmt.Println("GetStateNotCache",key.Hex())
 	value := common.Hash{}
 	// Load from DB in case it is missing.
 	enc, err := self.getTrie(db).TryGet(key[:])
