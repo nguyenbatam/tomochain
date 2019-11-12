@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/json"
 	"flag"
@@ -14,11 +15,13 @@ import (
 	"github.com/ethereum/go-ethereum/crypto/sha3"
 	"github.com/ethereum/go-ethereum/eth"
 	"github.com/ethereum/go-ethereum/ethdb"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/ethereum/go-ethereum/trie"
 	"github.com/syndtr/goleveldb/leveldb"
 	"github.com/syndtr/goleveldb/leveldb/util"
 	"hash"
+	"os"
 	"runtime"
 	"time"
 )
@@ -27,7 +30,7 @@ var (
 	from   = flag.String("from", "/data/tomo/chaindata_bak", "directory to TomoChain chaindata")
 	to     = flag.String("to", "/data/tomo/chaindata_copy", "directory to clean chaindata")
 	length = flag.Uint64("length", 100, "minimum length backup state trie data")
-	addr   = flag.String("addr", "", "address want copy state trie")
+	addr   = flag.String("addr", "", "file contain address want copy state trie")
 
 	sercureKey       = []byte("secure-key-") // preimagePrefix + hash -> preimage
 	nWorker          = runtime.NumCPU() / 2
@@ -108,10 +111,22 @@ func main() {
 		return
 	}
 	if len(*addr) > 0 {
-		err = copyAddressData(common.HexToAddress(*addr), lastestRoot)
+		f, err := os.Open(*addr)
 		if err != nil {
-			fmt.Println("copyState Address dataRoot", *addr, lastestRoot.Hex(), "err", err)
-			return
+			fmt.Println(err)
+		}
+		defer f.Close()
+		scanner := bufio.NewScanner(f)
+		for scanner.Scan() {
+			addr := common.HexToAddress(scanner.Text())
+			err = copyAddressData(addr, lastestRoot)
+			if err != nil {
+				fmt.Println("copyState Address dataRoot", addr, lastestRoot.Hex(), "err", err)
+				return
+			}
+		}
+		if err := scanner.Err(); err != nil {
+			log.Crit("scan", "err", err)
 		}
 	} else {
 		err = copyStateData(lastestRoot, true)
@@ -217,7 +232,7 @@ func copyStateData(root common.Hash, checkAddr bool) error {
 }
 
 func copyAddressData(addr common.Address, lastestRoot common.Hash) error {
-	fmt.Println(time.Now(), "run copy address data ", "root", lastestRoot.Hex())
+	fmt.Println(time.Now(), "run copy address data ", addr.Hex(), "root", lastestRoot.Hex())
 	batch = toDB.NewBatch()
 	rootNode, valueDB, err := resolveHash(lastestRoot[:], fromDB.LDB())
 	if err != nil {
