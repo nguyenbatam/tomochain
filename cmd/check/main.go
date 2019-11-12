@@ -39,7 +39,6 @@ var (
 func main() {
 	flag.Parse()
 	log.Root().SetHandler(log.LvlFilterHandler(log.LvlError, log.StreamHandler(os.Stdout, log.TerminalFormat(true))))
-	fmt.Println("flag")
 	fromDB, err = ethdb.NewLDBDatabase(*from, eth.DefaultConfig.DatabaseCache, utils.MakeDatabaseHandles())
 	defer fromDB.Close()
 	if err != nil {
