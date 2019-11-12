@@ -142,7 +142,7 @@ func (t *Trie) Get(key []byte) []byte {
 // If a node was not found in the database, a MissingNodeError is returned.
 func (t *Trie) TryGet(key []byte) ([]byte, error) {
 	key = keybytesToHex(key)
-	fmt.Println("TryGet",common.Bytes2Hex(key))
+	fmt.Println("TryGet", common.Bytes2Hex(key), "root", t.root)
 	value, newroot, didResolve, err := t.tryGet(t.root, key, 0)
 	if err == nil && didResolve {
 		t.root = newroot
@@ -151,7 +151,6 @@ func (t *Trie) TryGet(key []byte) ([]byte, error) {
 }
 
 func (t *Trie) tryGet(origNode Node, key []byte, pos int) (value []byte, newnode Node, didResolve bool, err error) {
-	fmt.Println("TryGet",pos,common.Bytes2Hex(key),origNode)
 	switch n := (origNode).(type) {
 	case nil:
 		return nil, nil, false, nil
