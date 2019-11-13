@@ -45,7 +45,7 @@ var (
 	fromDB           *ethdb.LDBDatabase
 	toDB             *ethdb.LDBDatabase
 	err              error
-	lengthBackupData = uint64(2000)
+	lengthBackupData = uint64(5000)
 	cacheCode, _     = lru.NewARC(10000)
 )
 

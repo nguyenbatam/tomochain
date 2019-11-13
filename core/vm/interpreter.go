@@ -18,7 +18,6 @@ package vm
 
 import (
 	"fmt"
-	"github.com/ethereum/go-ethereum/log"
 	"sync/atomic"
 
 	"github.com/ethereum/go-ethereum/common/math"
@@ -105,7 +104,6 @@ func (in *Interpreter) enforceRestrictions(op OpCode, operation operation, stack
 // considered a revert-and-consume-all-gas operation except for
 // errExecutionReverted which means revert-and-keep-gas-left.
 func (in *Interpreter) Run(contract *Contract, input []byte) (ret []byte, err error) {
-	defer log.Debug("Interpreter Run", "contract code", len(contract.Code), "err", err)
 	// Increment the call depth which is restricted to 1024
 	in.evm.depth++
 	defer func() { in.evm.depth-- }()
@@ -188,7 +186,6 @@ func (in *Interpreter) Run(contract *Contract, input []byte) (ret []byte, err er
 		// consume the gas and return an error if not enough gas is available.
 		// cost is explicitly set so that the capture state defer method can get the proper cost
 		cost, err = operation.gasCost(in.gasTable, in.evm, contract, stack, mem, memorySize)
-		log.Debug("Interpreter Run", "gas cost ", cost, "op", op, "operation", operation)
 		if err != nil || !contract.UseGas(cost) {
 			return nil, ErrOutOfGas
 		}
