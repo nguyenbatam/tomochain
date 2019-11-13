@@ -35,6 +35,7 @@ var (
 	fromDB     *ethdb.LDBDatabase
 	toDB       *ethdb.LDBDatabase
 	err        error
+	emptyCode  = crypto.Keccak256Hash(nil)
 )
 
 func main() {
@@ -100,10 +101,12 @@ func checkAddress(addr common.Address, fromState *state.StateDB, toState *state.
 	if bytes.Compare(byteFrom, byteTo) != 0 {
 		return false
 	}
-	codeHash := objectTo.CodeHash()
-	code, err := toDB.Get(codeHash[:], nil);
-	if err != nil || len(code) == 0 {
-		return false
+	codeHash := common.BytesToHash(objectTo.CodeHash())
+	if !common.EmptyHash(codeHash) && emptyCode != codeHash {
+		code, err := toDB.Get(codeHash[:], nil);
+		if err != nil || len(code) == 0 {
+			return false
+		}
 	}
 	check := fromState.ForEachStorageAndCheck(addr, func(key, value common.Hash) bool {
 		value = objectFrom.GetStateNotCache(fromState.Database(), key)
