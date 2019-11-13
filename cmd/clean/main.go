@@ -48,6 +48,7 @@ var (
 )
 
 func main() {
+	fmt.Println(emptyCode.Hex())
 	flag.Parse()
 	fromDB, err = ethdb.NewLDBDatabase(*from, eth.DefaultConfig.DatabaseCache, utils.MakeDatabaseHandles())
 	defer fromDB.Close()
@@ -428,7 +429,13 @@ func processNode(n trie.Node, path []byte, checkAddr bool, log bool) error {
 					return err
 				}
 				putToDataCopy(data.CodeHash, enc)
-				fmt.Println("copy code hash", common.Bytes2Hex(data.CodeHash))
+				keyDB := append(sercureKey, hexToKeybytes(path)...)
+				valueDB, err := fromDB.Get(keyDB)
+				if err != nil {
+					fmt.Println("Not found key ", common.Bytes2Hex(keyDB))
+					return err
+				}
+				fmt.Println("copy code hash", common.Bytes2Hex(data.CodeHash), "addr", common.Bytes2Hex(valueDB), "enc", common.Bytes2Hex(enc))
 			}
 		}
 	default:
