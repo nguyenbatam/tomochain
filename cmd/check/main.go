@@ -74,7 +74,7 @@ func main() {
 	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
 		addr := common.HexToAddress(scanner.Text())
-		if !checkAddress(addr, fromState, toState) {
+		if !checkAddress(addr, fromState, toState,toDB.LDB()) {
 			fmt.Println(addr.Hex())
 		}
 	}
