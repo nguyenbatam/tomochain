@@ -13,6 +13,7 @@ import (
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rlp"
+	"github.com/syndtr/goleveldb/leveldb"
 	"os"
 	"runtime"
 )
@@ -78,7 +79,7 @@ func main() {
 		log.Crit("scan", "err", err)
 	}
 }
-func checkAddress(addr common.Address, fromState *state.StateDB, toState *state.StateDB) bool {
+func checkAddress(addr common.Address, fromState *state.StateDB, toState *state.StateDB, toDB *leveldb.DB) bool {
 	objectFrom := fromState.GetStateObjectNotCache(addr)
 	if objectFrom == nil {
 		return true
@@ -97,6 +98,11 @@ func checkAddress(addr common.Address, fromState *state.StateDB, toState *state.
 	}
 
 	if bytes.Compare(byteFrom, byteTo) != 0 {
+		return false
+	}
+	codeHash := objectTo.CodeHash()
+	code, err := toDB.Get(codeHash[:], nil);
+	if err != nil || len(code) == 0 {
 		return false
 	}
 	check := fromState.ForEachStorageAndCheck(addr, func(key, value common.Hash) bool {
