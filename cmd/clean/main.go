@@ -18,6 +18,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/ethereum/go-ethereum/trie"
+	lru "github.com/hashicorp/golang-lru"
 	"github.com/syndtr/goleveldb/leveldb"
 	"github.com/syndtr/goleveldb/leveldb/util"
 	"hash"
@@ -45,6 +46,7 @@ var (
 	toDB             *ethdb.LDBDatabase
 	err              error
 	lengthBackupData = uint64(2000)
+	cacheCode, _     = lru.NewARC(10000)
 )
 
 func main() {
@@ -423,7 +425,8 @@ func processNode(n trie.Node, path []byte, checkAddr bool, log bool) error {
 				}
 				putToDataCopy(data.Root[:], valueDB)
 			}
-			if common.BytesToHash(data.CodeHash) != emptyCode {
+			codeHash := common.BytesToHash(data.CodeHash)
+			if codeHash != emptyCode && !cacheCode.Contains(codeHash) {
 				enc, err := fromDB.Get(data.CodeHash)
 				if err != nil {
 					return err
@@ -435,7 +438,8 @@ func processNode(n trie.Node, path []byte, checkAddr bool, log bool) error {
 					fmt.Println("Not found key ", common.Bytes2Hex(keyDB))
 					return err
 				}
-				fmt.Println("copy code hash", common.Bytes2Hex(data.CodeHash), "addr", common.Bytes2Hex(valueDB), "enc", common.Bytes2Hex(enc))
+				cacheCode.Add(codeHash, true)
+				fmt.Println("copy code hash", codeHash.Hex(), "addr", common.Bytes2Hex(valueDB))
 			}
 		}
 	default:
