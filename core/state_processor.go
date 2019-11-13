@@ -24,6 +24,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 	"math/big"
 )
@@ -199,6 +200,7 @@ func ApplyTransaction(config *params.ChainConfig, tokensFee map[common.Address]*
 	vmenv := vm.NewEVM(context, statedb, config, cfg)
 	// Apply the transaction to the current state (included in the env)
 	_, gas, failed, err := ApplyMessage(vmenv, msg, gp)
+	log.Debug("ApplyMessage", "hash", tx.Hash().Hex(), "to", tx.To().Hex(), "failed", failed, "gas", gas, "err", err)
 	if err != nil {
 		return nil, 0, err, false
 	}

@@ -18,11 +18,12 @@ import (
 )
 
 var (
-	dir          = flag.String("dir", "/data/tomo/chaindata", "directory to TomoChain chaindata")
-	address      = flag.String("address", "/data/tomo/address.txt", "output list address in block")
-	from         = flag.Uint64("from", 0, "from block number")
-	cache, _     = lru.NewARC(10000)
-	addrChan     chan string
+	dir      = flag.String("dir", "/data/tomo/chaindata", "directory to TomoChain chaindata")
+	address  = flag.String("address", "/data/tomo/address.txt", "output list address in block")
+	from     = flag.Uint64("from", 0, "from block number")
+	smc      = flag.Uint64("smc", 0, "=0 if check all =1 if only get smc address")
+	cache, _ = lru.NewARC(10000)
+	addrChan chan string
 )
 
 func main() {
@@ -75,11 +76,13 @@ func main() {
 		wg := sync.WaitGroup{}
 		wg.Add(length)
 		for i := 0; i < length; i++ {
-			go func(index int, tx *types.Transaction) {
-				from, _ := signer.Sender(tx)
-				froms[index] = from
-				wg.Done()
-			}(i, txs[i])
+			if *smc == 0 || txs[i].To() == nil {
+				go func(index int, tx *types.Transaction) {
+					from, _ := signer.Sender(tx)
+					froms[index] = from
+					wg.Done()
+				}(i, txs[i])
+			}
 		}
 		wg.Wait()
 		for i, tx := range txs {
@@ -91,16 +94,18 @@ func main() {
 				go func(addr string) {
 					addrChan <- addr
 				}(smc.Hex())
-			} else {
+			} else if *smc == 0 {
 				if tx.To().Hex() != common.BlockSigners {
 					go func(addr string) {
 						addrChan <- addr
 					}(tx.To().Hex())
 				}
 			}
-			go func(addr string) {
-				addrChan <- addr
-			}(from.Hex())
+			if *smc == 0 {
+				go func(addr string) {
+					addrChan <- addr
+				}(from.Hex())
+			}
 		}
 	}
 	time.Sleep(10 * time.Second)

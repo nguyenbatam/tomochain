@@ -38,6 +38,7 @@ var (
 	running          = true
 	emptyRoot        = common.HexToHash("56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421")
 	emptyState       = crypto.Keccak256Hash(nil)
+	emptyCode        = crypto.Keccak256Hash(nil)
 	batch            ethdb.Batch
 	count            = 0
 	fromDB           *ethdb.LDBDatabase
@@ -420,6 +421,14 @@ func processNode(n trie.Node, path []byte, checkAddr bool, log bool) error {
 					return err
 				}
 				putToDataCopy(data.Root[:], valueDB)
+			}
+			if common.BytesToHash(data.CodeHash) != emptyCode {
+				enc, err := fromDB.Get(data.CodeHash)
+				if err != nil {
+					return err
+				}
+				putToDataCopy(data.CodeHash, enc)
+				fmt.Println("copy code hash", common.Bytes2Hex(data.CodeHash))
 			}
 		}
 	default:
