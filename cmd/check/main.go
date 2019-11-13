@@ -13,6 +13,7 @@ import (
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rlp"
+	lru "github.com/hashicorp/golang-lru"
 	"github.com/syndtr/goleveldb/leveldb"
 	"os"
 	"runtime"
@@ -24,18 +25,19 @@ var (
 	root    = flag.String("root", "0xc96e205f8e0d7dccea94c04fde6e6f7e508a3bbb91d2630335b37fbe23ec3a87", "state root compare")
 	address = flag.String("address", "/data/tomo/adress.txt", "list address in state db")
 
-	sercureKey = []byte("secure-key-") // preimagePrefix + hash -> preimage
-	nWorker    = runtime.NumCPU() / 2
-	finish     = int32(0)
-	running    = true
-	emptyRoot  = common.HexToHash("56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421")
-	emptyState = crypto.Keccak256Hash(nil).Bytes()
-	batch      ethdb.Batch
-	count      = 0
-	fromDB     *ethdb.LDBDatabase
-	toDB       *ethdb.LDBDatabase
-	err        error
-	emptyCode  = crypto.Keccak256Hash(nil)
+	sercureKey   = []byte("secure-key-") // preimagePrefix + hash -> preimage
+	nWorker      = runtime.NumCPU() / 2
+	finish       = int32(0)
+	running      = true
+	emptyRoot    = common.HexToHash("56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421")
+	emptyState   = crypto.Keccak256Hash(nil).Bytes()
+	batch        ethdb.Batch
+	count        = 0
+	fromDB       *ethdb.LDBDatabase
+	toDB         *ethdb.LDBDatabase
+	err          error
+	emptyCode    = crypto.Keccak256Hash(nil)
+	cacheCode, _ = lru.NewARC(10000)
 )
 
 func main() {
@@ -102,11 +104,12 @@ func checkAddress(addr common.Address, fromState *state.StateDB, toState *state.
 		return false
 	}
 	codeHash := common.BytesToHash(objectTo.CodeHash())
-	if !common.EmptyHash(codeHash) && emptyCode != codeHash {
+	if !common.EmptyHash(codeHash) && emptyCode != codeHash && !cacheCode.Contains(codeHash) {
 		code, err := toDB.Get(codeHash[:], nil);
 		if err != nil || len(code) == 0 {
 			return false
 		}
+		cacheCode.Add(cacheCode, true)
 	}
 	check := fromState.ForEachStorageAndCheck(addr, func(key, value common.Hash) bool {
 		value = objectFrom.GetStateNotCache(fromState.Database(), key)
