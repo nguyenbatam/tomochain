@@ -67,10 +67,9 @@ func main() {
 	tridb := trie.NewDatabase(fromDB)
 	head := core.GetHeadBlockHash(fromDB)
 	header := core.GetHeader(fromDB, head, core.GetBlockNumber(fromDB, head))
-	number := header.Number.Uint64() + 1
+	number := header.Number.Uint64() - 50
 	lastestRoot := common.Hash{}
 	lastestRootNumber := uint64(0)
-	backupRoot := common.Hash{}
 	backupNumber := uint64(0)
 	for number >= 1 {
 		number = number - 1
@@ -90,20 +89,15 @@ func main() {
 			if number < backupNumber {
 				backupNumber = number
 			}
-		} else if common.EmptyHash(backupRoot) && root != lastestRoot && number < lastestRootNumber-*length {
-			backupRoot = root
-			if number < backupNumber {
-				backupNumber = number
-			}
 		}
-		if backupNumber > 0 && !common.EmptyHash(lastestRoot) && !common.EmptyHash(backupRoot) {
+		if backupNumber > 0 && !common.EmptyHash(lastestRoot) {
 			break
 		}
 	}
 	if lastestRootNumber-lengthBackupData < backupNumber {
 		backupNumber = lastestRootNumber - lengthBackupData
 	}
-	fmt.Println("lastestRoot", lastestRoot.Hex(), "lastestRootNumber", lastestRootNumber, "backupRoot", backupRoot.Hex(), "backupNumber", backupNumber, "currentNumber", header.Number.Uint64())
+	fmt.Println("lastestRoot", lastestRoot.Hex(), "lastestRootNumber", lastestRootNumber, "backupNumber", backupNumber, "currentNumber", header.Number.Uint64())
 	err = copyHeadData()
 	if err != nil {
 		fmt.Println("copyHeadData", err)
@@ -139,11 +133,6 @@ func main() {
 			return
 		}
 	}
-	//err = copyStateData(backupRoot)
-	//if err != nil {
-	//	fmt.Println("copyStateData backupRoot", backupRoot.Hex(), "err", err)
-	//	return
-	//}
 	fmt.Println(time.Now(), "compact")
 	toDB.LDB().CompactRange(util.Range{})
 	fmt.Println(time.Now(), "end")
