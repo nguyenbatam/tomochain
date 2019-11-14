@@ -60,7 +60,7 @@ func main() {
 		for i := number; i <= number+20; i++ {
 			hash := core.GetCanonicalHash(db, i)
 			if common.EmptyHash(hash) {
-				break
+				continue
 			}
 			body := core.GetBody(db, hash, i)
 			if len(body.Transactions) > 0 {
