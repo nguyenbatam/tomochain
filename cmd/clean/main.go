@@ -33,7 +33,6 @@ var (
 	length = flag.Uint64("length", 100, "minimum length backup state trie data")
 	addr   = flag.String("addr", "", "file contain address want copy state trie")
 
-	sercureKey       = []byte("secure-key-") // preimagePrefix + hash -> preimage
 	nWorker          = runtime.NumCPU() / 2
 	finish           = int32(0)
 	running          = true
@@ -386,17 +385,6 @@ func processNode(n trie.Node, path []byte, checkAddr bool, log bool) error {
 			putToDataCopy(keyDB, valueDB)
 		}
 	case trie.ValueNode:
-		if log {
-			keyDB := append(sercureKey, hexToKeybytes(path)...)
-			valueDB, err := fromDB.Get(keyDB)
-			if err != nil {
-				fmt.Println("Not found key ", common.Bytes2Hex(keyDB))
-				return err
-			}
-			key := common.Bytes2Hex(valueDB)
-			fmt.Println("find key ", key, "path", common.Bytes2Hex(path), " => ", common.Bytes2Hex(keybytesToHex(hashKey(valueDB))))
-			//putToDataCopy(keyDB, valueDB)
-		}
 		if checkAddr {
 			var data state.Account
 			if err := rlp.DecodeBytes(node, &data); err != nil {
@@ -421,14 +409,8 @@ func processNode(n trie.Node, path []byte, checkAddr bool, log bool) error {
 					return err
 				}
 				putToDataCopy(data.CodeHash, enc)
-				keyDB := append(sercureKey, hexToKeybytes(path)...)
-				valueDB, err := fromDB.Get(keyDB)
-				if err != nil {
-					fmt.Println("Not found key ", common.Bytes2Hex(keyDB))
-					return err
-				}
 				cacheCode.Add(codeHash, true)
-				fmt.Println("copy code hash", codeHash.Hex(), "addr", common.Bytes2Hex(valueDB))
+				fmt.Println("copy code hash", codeHash.Hex())
 			}
 		}
 	default:
