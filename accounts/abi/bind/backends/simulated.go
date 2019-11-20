@@ -293,12 +293,6 @@ func (b *SimulatedBackend) callContract(ctx context.Context, call ethereum.CallM
 	from.SetBalance(math.MaxBig256)
 	// Execute the call.
 	msg := callmsg{call}
-	feeCapacity := state.GetTRC21FeeCapacityFromState(statedb)
-	if msg.To() != nil {
-		if value, ok := feeCapacity[*msg.To()]; ok {
-			msg.CallMsg.BalanceTokenFee = value
-		}
-	}
 	evmContext := core.NewEVMContext(msg, block.Header(), b.blockchain, nil)
 	// Create a new environment which holds all relevant information
 	// about the transaction and calling mechanisms.
@@ -429,7 +423,6 @@ func (m callmsg) GasPrice() *big.Int        { return m.CallMsg.GasPrice }
 func (m callmsg) Gas() uint64               { return m.CallMsg.Gas }
 func (m callmsg) Value() *big.Int           { return m.CallMsg.Value }
 func (m callmsg) Data() []byte              { return m.CallMsg.Data }
-func (m callmsg) BalanceTokenFee() *big.Int { return m.CallMsg.BalanceTokenFee }
 
 // filterBackend implements filters.Backend to support filtering for logs without
 // taking bloom-bits acceleration structures into account.

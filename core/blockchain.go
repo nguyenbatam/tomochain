@@ -1211,9 +1211,8 @@ func (bc *BlockChain) insertChain(chain types.Blocks) (int, []interface{}, []*ty
 		if err != nil {
 			return i, events, coalescedLogs, err
 		}
-		feeCapacity := state.GetTRC21FeeCapacityFromStateWithCache(parent.Root(), statedb)
 		// Process block using the parent state as reference point.
-		receipts, logs, usedGas, err := bc.processor.Process(block, statedb, bc.vmConfig, feeCapacity)
+		receipts, logs, usedGas, err := bc.processor.Process(block, statedb, bc.vmConfig)
 		if err != nil {
 			bc.reportBlock(block, receipts, err)
 			return i, events, coalescedLogs, err
@@ -1398,9 +1397,9 @@ func (bc *BlockChain) getResultBlock(block *types.Block, verifiedM2 bool) (*Resu
 	if err != nil {
 		return nil, err
 	}
-	feeCapacity := state.GetTRC21FeeCapacityFromStateWithCache(parent.Root(), statedb)
+
 	// Process block using the parent state as reference point.
-	receipts, logs, usedGas, err := bc.processor.ProcessBlockNoValidator(calculatedBlock, statedb, bc.vmConfig, feeCapacity)
+	receipts, logs, usedGas, err := bc.processor.ProcessBlockNoValidator(calculatedBlock, statedb, bc.vmConfig)
 	process := time.Since(bstart)
 	if err != nil {
 		if err != ErrStopPreparingBlock {

@@ -302,9 +302,9 @@ func (self *worker) update() {
 				self.currentMu.Lock()
 				acc, _ := types.Sender(self.current.signer, ev.Tx)
 				txs := map[common.Address]types.Transactions{acc: {ev.Tx}}
-				feeCapacity := state.GetTRC21FeeCapacityFromState(self.current.state)
-				txset, specialTxs := types.NewTransactionsByPriceAndNonce(self.current.signer, txs, nil, feeCapacity)
-				self.current.commitTransactions(self.mux, feeCapacity, txset, specialTxs, self.chain, self.coinbase)
+
+				txset, specialTxs := types.NewTransactionsByPriceAndNonce(self.current.signer, txs, nil)
+				self.current.commitTransactions(self.mux, txset, specialTxs, self.chain, self.coinbase)
 				self.currentMu.Unlock()
 			} else {
 				// If we're mining, but nothing is being processed, wake on new transactions
@@ -593,16 +593,15 @@ func (self *worker) commitNewWork() {
 		txs        *types.TransactionsByPriceAndNonce
 		specialTxs types.Transactions
 	)
-	feeCapacity := state.GetTRC21FeeCapacityFromStateWithCache(parent.Root(), work.state)
 	if self.config.Posv != nil && header.Number.Uint64()%self.config.Posv.Epoch != 0 {
 		pending, err := self.eth.TxPool().Pending()
 		if err != nil {
 			log.Error("Failed to fetch pending transactions", "err", err)
 			return
 		}
-		txs, specialTxs = types.NewTransactionsByPriceAndNonce(self.current.signer, pending, signers, feeCapacity)
+		txs, specialTxs = types.NewTransactionsByPriceAndNonce(self.current.signer, pending, signers)
 	}
-	work.commitTransactions(self.mux, feeCapacity, txs, specialTxs, self.chain, self.coinbase)
+	work.commitTransactions(self.mux, txs, specialTxs, self.chain, self.coinbase)
 
 	// compute uncles for the new block.
 	var (
@@ -656,27 +655,11 @@ func (self *worker) commitUncle(work *Work, uncle *types.Header) error {
 	return nil
 }
 
-func (env *Work) commitTransactions(mux *event.TypeMux, balanceFee map[common.Address]*big.Int, txs *types.TransactionsByPriceAndNonce, specialTxs types.Transactions, bc *core.BlockChain, coinbase common.Address) {
+func (env *Work) commitTransactions(mux *event.TypeMux, txs *types.TransactionsByPriceAndNonce, specialTxs types.Transactions, bc *core.BlockChain, coinbase common.Address) {
 	gp := new(core.GasPool).AddGas(env.header.GasLimit)
-	balanceUpdated := map[common.Address]*big.Int{}
-	totalFeeUsed := big.NewInt(0)
 	var coalescedLogs []*types.Log
 	// first priority for special Txs
 	for _, tx := range specialTxs {
-
-		//HF number for black-list
-		if (env.header.Number.Uint64() >= common.BlackListHFNumber) && !common.IsTestnet {
-			// check if sender is in black list
-			if tx.From() != nil && common.Blacklist[*tx.From()] {
-				log.Debug("Skipping transaction with sender in black-list", "sender", tx.From().Hex())
-				continue
-			}
-			// check if receiver is in black list
-			if tx.To() != nil && common.Blacklist[*tx.To()] {
-				log.Debug("Skipping transaction with receiver in black-list", "receiver", tx.To().Hex())
-				continue
-			}
-		}
 
 		if gp.Gas() < params.TxGas && tx.Gas() > 0 {
 			log.Trace("Not enough gas for further transactions", "gp", gp)
@@ -711,7 +694,7 @@ func (env *Work) commitTransactions(mux *event.TypeMux, balanceFee map[common.Ad
 			log.Trace("Skipping account with special transaction invalide nonce", "sender", from, "nonce", nonce, "tx nonce ", tx.Nonce(), "to", tx.To())
 			continue
 		}
-		err, logs, tokenFeeUsed, gas := env.commitTransaction(balanceFee, tx, bc, coinbase, gp)
+		err, logs, _ := env.commitTransaction(tx, bc, coinbase, gp)
 		switch err {
 		case core.ErrNonceTooLow:
 			// New head notification data race between the transaction pool and miner, shift
@@ -730,15 +713,6 @@ func (env *Work) commitTransactions(mux *event.TypeMux, balanceFee map[common.Ad
 			// nonce-too-high clause will prevent us from executing in vain).
 			log.Debug("Add Special Transaction failed, account skipped", "hash", tx.Hash(), "sender", from, "nonce", tx.Nonce(), "to", tx.To(), "err", err)
 		}
-		if tokenFeeUsed {
-			fee := new(big.Int).SetUint64(gas)
-			if env.header.Number.Cmp(common.TIPTRC21Fee) > 0 {
-				fee = fee.Mul(fee, common.TRC21GasPrice)
-			}
-			balanceFee[*tx.To()] = new(big.Int).Sub(balanceFee[*tx.To()], fee)
-			balanceUpdated[*tx.To()] = balanceFee[*tx.To()]
-			totalFeeUsed = totalFeeUsed.Add(totalFeeUsed, fee)
-		}
 	}
 	for {
 		// If we don't have enough gas for any further transactions then we're done
@@ -755,22 +729,6 @@ func (env *Work) commitTransactions(mux *event.TypeMux, balanceFee map[common.Ad
 
 		if tx == nil {
 			break
-		}
-
-		//HF number for black-list
-		if (env.header.Number.Uint64() >= common.BlackListHFNumber) && !common.IsTestnet {
-			// check if sender is in black list
-			if tx.From() != nil && common.Blacklist[*tx.From()] {
-				log.Debug("Skipping transaction with sender in black-list", "sender", tx.From().Hex())
-				txs.Pop()
-				continue
-			}
-			// check if receiver is in black list
-			if tx.To() != nil && common.Blacklist[*tx.To()] {
-				log.Debug("Skipping transaction with receiver in black-list", "receiver", tx.To().Hex())
-				txs.Shift()
-				continue
-			}
 		}
 
 		// Error may be ignored here. The error has already been checked
@@ -800,7 +758,7 @@ func (env *Work) commitTransactions(mux *event.TypeMux, balanceFee map[common.Ad
 			txs.Pop()
 			continue
 		}
-		err, logs, tokenFeeUsed, gas := env.commitTransaction(balanceFee, tx, bc, coinbase, gp)
+		err, logs, _ := env.commitTransaction(tx, bc, coinbase, gp)
 		switch err {
 		case core.ErrGasLimitReached:
 			// Pop the current out-of-gas transaction without shifting in the next from the account
@@ -829,17 +787,7 @@ func (env *Work) commitTransactions(mux *event.TypeMux, balanceFee map[common.Ad
 			log.Debug("Transaction failed, account skipped", "hash", tx.Hash(), "err", err)
 			txs.Shift()
 		}
-		if tokenFeeUsed {
-			fee := new(big.Int).SetUint64(gas)
-			if env.header.Number.Cmp(common.TIPTRC21Fee) > 0 {
-				fee = fee.Mul(fee, common.TRC21GasPrice)
-			}
-			balanceFee[*tx.To()] = new(big.Int).Sub(balanceFee[*tx.To()], fee)
-			balanceUpdated[*tx.To()] = balanceFee[*tx.To()]
-			totalFeeUsed = totalFeeUsed.Add(totalFeeUsed, fee)
-		}
 	}
-	state.UpdateTRC21Fee(env.state, balanceUpdated, totalFeeUsed)
 	if len(coalescedLogs) > 0 || env.tcount > 0 {
 		// make a copy, the state caches the logs and these logs get "upgraded" from pending to mined
 		// logs by filling in the block hash when the block was mined by the local miner. This can
@@ -860,16 +808,16 @@ func (env *Work) commitTransactions(mux *event.TypeMux, balanceFee map[common.Ad
 	}
 }
 
-func (env *Work) commitTransaction(balanceFee map[common.Address]*big.Int, tx *types.Transaction, bc *core.BlockChain, coinbase common.Address, gp *core.GasPool) (error, []*types.Log, bool, uint64) {
+func (env *Work) commitTransaction(tx *types.Transaction, bc *core.BlockChain, coinbase common.Address, gp *core.GasPool) (error, []*types.Log, uint64) {
 	snap := env.state.Snapshot()
 
-	receipt, gas, err, tokenFeeUsed := core.ApplyTransaction(env.config, balanceFee, bc, &coinbase, gp, env.state, env.header, tx, &env.header.GasUsed, vm.Config{})
+	receipt, gas, err := core.ApplyTransaction(env.config, bc, &coinbase, gp, env.state, env.header, tx, &env.header.GasUsed, vm.Config{})
 	if err != nil {
 		env.state.RevertToSnapshot(snap)
-		return err, nil, false, 0
+		return err, nil, 0
 	}
 	env.txs = append(env.txs, tx)
 	env.receipts = append(env.receipts, receipt)
 
-	return nil, receipt.Logs, tokenFeeUsed, gas
+	return nil, receipt.Logs, gas
 }

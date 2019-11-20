@@ -218,9 +218,8 @@ type TxPool struct {
 
 	wg sync.WaitGroup // for shutdown sync
 
-	homestead        bool
-	IsSigner         func(address common.Address) bool
-	trc21FeeCapacity map[common.Address]*big.Int
+	homestead bool
+	IsSigner  func(address common.Address) bool
 }
 
 // NewTxPool creates a new transaction pool to gather, sort and filter inbound
@@ -231,17 +230,16 @@ func NewTxPool(config TxPoolConfig, chainconfig *params.ChainConfig, chain block
 
 	// Create the transaction pool with its initial settings
 	pool := &TxPool{
-		config:           config,
-		chainconfig:      chainconfig,
-		chain:            chain,
-		signer:           types.NewEIP155Signer(chainconfig.ChainId),
-		pending:          make(map[common.Address]*txList),
-		queue:            make(map[common.Address]*txList),
-		beats:            make(map[common.Address]time.Time),
-		all:              make(map[common.Hash]*types.Transaction),
-		chainHeadCh:      make(chan ChainHeadEvent, chainHeadChanSize),
-		gasPrice:         new(big.Int).SetUint64(config.PriceLimit),
-		trc21FeeCapacity: map[common.Address]*big.Int{},
+		config:      config,
+		chainconfig: chainconfig,
+		chain:       chain,
+		signer:      types.NewEIP155Signer(chainconfig.ChainId),
+		pending:     make(map[common.Address]*txList),
+		queue:       make(map[common.Address]*txList),
+		beats:       make(map[common.Address]time.Time),
+		all:         make(map[common.Hash]*types.Transaction),
+		chainHeadCh: make(chan ChainHeadEvent, chainHeadChanSize),
+		gasPrice:    new(big.Int).SetUint64(config.PriceLimit),
 	}
 	pool.locals = newAccountSet(pool.signer)
 	pool.priced = newTxPricedList(&pool.all)
@@ -419,7 +417,6 @@ func (pool *TxPool) reset(oldHead, newHead *types.Header) {
 		return
 	}
 	pool.currentState = statedb
-	pool.trc21FeeCapacity = state.GetTRC21FeeCapacityFromStateWithCache(newHead.Root, statedb)
 	pool.pendingState = state.ManageState(statedb)
 	pool.currentMaxGas = newHead.GasLimit
 
@@ -574,14 +571,6 @@ func (pool *TxPool) GetSender(tx *types.Transaction) (common.Address, error) {
 // validateTx checks whether a transaction is valid according to the consensus
 // rules and adheres to some heuristic limits of the local node (price and size).
 func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
-	// check if sender is in black list
-	if tx.From() != nil && common.Blacklist[*tx.From()] {
-		return fmt.Errorf("Reject transaction with sender in black-list: %v", tx.From().Hex())
-	}
-	// check if receiver is in black list
-	if tx.To() != nil && common.Blacklist[*tx.To()] {
-		return fmt.Errorf("Reject transaction with receiver in black-list: %v", tx.To().Hex())
-	}
 
 	// Heuristic limit, reject transactions over 32KB to prevent DOS attacks
 	if tx.Size() > 32*1024 {
@@ -592,21 +581,10 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 	if tx.Value().Sign() < 0 {
 		return ErrNegativeValue
 	}
-	// Ensure the transaction doesn't exceed the current block limit gas.
-	if pool.currentMaxGas < tx.Gas() {
-		return ErrGasLimit
-	}
 	// Make sure the transaction is signed properly
 	from, err := types.Sender(pool.signer, tx)
 	if err != nil {
 		return ErrInvalidSender
-	}
-	// Drop non-local transactions under our own minimal accepted gas price
-	local = local || pool.locals.contains(from) // account may be local even if the transaction arrived from the network
-	if !local && pool.gasPrice.Cmp(tx.GasPrice()) > 0 {
-		if !tx.IsSpecialTransaction() || (pool.IsSigner != nil && !pool.IsSigner(from)) {
-			return ErrUnderpriced
-		}
 	}
 	// Ensure the transaction adheres to nonce ordering
 	if pool.currentState.GetNonce(from) > tx.Nonce() {
@@ -614,50 +592,6 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 	}
 	if pool.pendingState.GetNonce(from)+common.LimitThresholdNonceInQueue < tx.Nonce() {
 		return ErrNonceTooHigh
-	}
-	// Transactor should have enough funds to cover the costs
-	// cost == V + GP * GL
-	balance := pool.currentState.GetBalance(from)
-	cost := tx.Cost()
-	minGasPrice := common.MinGasPrice
-	if tx.To() != nil {
-		if value, ok := pool.trc21FeeCapacity[*tx.To()]; ok {
-			balance = value
-			if !state.ValidateTRC21Tx(pool.pendingState.StateDB, from, *tx.To(), tx.Data()) {
-				return ErrInsufficientFunds
-			}
-			cost = tx.TRC21Cost()
-			minGasPrice = common.TRC21GasPrice
-		}
-	}
-	if balance.Cmp(cost) < 0 {
-		return ErrInsufficientFunds
-	}
-
-	if tx.To() == nil || (tx.To() != nil && !tx.IsSpecialTransaction()) {
-		intrGas, err := IntrinsicGas(tx.Data(), tx.To() == nil, pool.homestead)
-		if err != nil {
-			return err
-		}
-		// Exclude check smart contract sign address.
-		if tx.Gas() < intrGas {
-			return ErrIntrinsicGas
-		}
-
-		// Check zero gas price.
-		if tx.GasPrice().Cmp(new(big.Int).SetInt64(0)) == 0 {
-			return ErrZeroGasPrice
-		}
-
-		// under min gas price
-		if tx.GasPrice().Cmp(minGasPrice) < 0 {
-			return ErrUnderMinGasPrice
-		}
-	}
-
-	minGasDeploySMC := new(big.Int).Mul(new(big.Int).SetUint64(10), new(big.Int).SetUint64(params.Ether))
-	if tx.To() == nil && (tx.Cost().Cmp(minGasDeploySMC) < 0 || tx.GasPrice().Cmp(new(big.Int).SetUint64(10000*params.Shannon)) < 0) {
-		return ErrMinDeploySMC
 	}
 
 	return nil
@@ -1038,7 +972,7 @@ func (pool *TxPool) promoteExecutables(accounts []common.Address) {
 			pool.priced.Removed()
 		}
 		// Drop all transactions that are too costly (low balance or out of gas)
-		drops, _ := list.Filter(pool.currentState.GetBalance(addr), pool.currentMaxGas, pool.trc21FeeCapacity)
+		drops, _ := list.Filter(pool.currentState.GetBalance(addr), pool.currentMaxGas)
 		for _, tx := range drops {
 			hash := tx.Hash()
 			log.Trace("Removed unpayable queued transaction", "hash", hash)
@@ -1196,7 +1130,7 @@ func (pool *TxPool) demoteUnexecutables() {
 			pool.priced.Removed()
 		}
 		// Drop all transactions that are too costly (low balance or out of gas), and queue any invalids back for later
-		drops, invalids := list.Filter(pool.currentState.GetBalance(addr), pool.currentMaxGas, pool.trc21FeeCapacity)
+		drops, invalids := list.Filter(pool.currentState.GetBalance(addr), pool.currentMaxGas)
 		for _, tx := range drops {
 			hash := tx.Hash()
 			log.Trace("Removed unpayable pending transaction", "hash", hash)

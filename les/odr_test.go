@@ -127,13 +127,7 @@ func odrContractCall(ctx context.Context, db ethdb.Database, config *params.Chai
 			if err == nil {
 				from := statedb.GetOrNewStateObject(testBankAddress)
 				from.SetBalance(math.MaxBig256)
-				feeCapacity := state.GetTRC21FeeCapacityFromState(statedb)
-				var balanceTokenFee *big.Int
-				if value, ok := feeCapacity[testContractAddr]; ok {
-					balanceTokenFee = value
-				}
-				msg := callmsg{types.NewMessage(from.Address(), &testContractAddr, 0, new(big.Int), 100000, new(big.Int), data, false, balanceTokenFee)}
-
+				msg := callmsg{types.NewMessage(from.Address(), &testContractAddr, 0, new(big.Int), 100000, data, false)}
 				context := core.NewEVMContext(msg, header, bc, nil)
 				vmenv := vm.NewEVM(context, statedb, config, vm.Config{})
 
@@ -147,12 +141,7 @@ func odrContractCall(ctx context.Context, db ethdb.Database, config *params.Chai
 			header := lc.GetHeaderByHash(bhash)
 			statedb := light.NewState(ctx, header, lc.Odr())
 			statedb.SetBalance(testBankAddress, math.MaxBig256)
-			feeCapacity := state.GetTRC21FeeCapacityFromState(statedb)
-			var balanceTokenFee *big.Int
-			if value, ok := feeCapacity[testContractAddr]; ok {
-				balanceTokenFee = value
-			}
-			msg := callmsg{types.NewMessage(testBankAddress, &testContractAddr, 0, new(big.Int), 100000, new(big.Int), data, false, balanceTokenFee)}
+			msg := callmsg{types.NewMessage(testBankAddress, &testContractAddr, 0, new(big.Int), 100000, data, false)}
 			context := core.NewEVMContext(msg, header, lc, nil)
 			vmenv := vm.NewEVM(context, statedb, config, vm.Config{})
 			gp := new(core.GasPool).AddGas(math.MaxUint64)

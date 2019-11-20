@@ -290,7 +290,7 @@ func (l *txList) Forward(threshold uint64) types.Transactions {
 // a point in calculating all the costs or if the balance covers all. If the threshold
 // is lower than the costgas cap, the caps will be reset to a new high after removing
 // the newly invalidated transactions.
-func (l *txList) Filter(costLimit *big.Int, gasLimit uint64, trc21Issuers map[common.Address]*big.Int) (types.Transactions, types.Transactions) {
+func (l *txList) Filter(costLimit *big.Int, gasLimit uint64) (types.Transactions, types.Transactions) {
 	// If all transactions are below the threshold, short circuit
 	if l.costcap.Cmp(costLimit) <= 0 && l.gascap <= gasLimit {
 		return nil, nil
@@ -301,11 +301,6 @@ func (l *txList) Filter(costLimit *big.Int, gasLimit uint64, trc21Issuers map[co
 	// Filter out all the transactions above the account's funds
 	removed := l.txs.Filter(func(tx *types.Transaction) bool {
 		maximum := costLimit
-		if tx.To() != nil {
-			if balance, ok := trc21Issuers[*tx.To()]; ok {
-				maximum = balance
-			}
-		}
 		return tx.Cost().Cmp(maximum) > 0 || tx.Gas() > gasLimit
 	})
 
@@ -379,7 +374,7 @@ func (l *txList) Flatten() types.Transactions {
 type priceHeap []*types.Transaction
 
 func (h priceHeap) Len() int           { return len(h) }
-func (h priceHeap) Less(i, j int) bool { return h[i].GasPrice().Cmp(h[j].GasPrice()) < 0 }
+func (h priceHeap) Less(i, j int) bool { return i < j }
 func (h priceHeap) Swap(i, j int)      { h[i], h[j] = h[j], h[i] }
 
 func (h *priceHeap) Push(x interface{}) {

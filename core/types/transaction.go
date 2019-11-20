@@ -100,16 +100,13 @@ func newTransaction(nonce uint64, to *common.Address, amount *big.Int, gasLimit 
 		Payload:      data,
 		Amount:       new(big.Int),
 		GasLimit:     gasLimit,
-		Price:        new(big.Int),
+		Price:        big.NewInt(0),
 		V:            new(big.Int),
 		R:            new(big.Int),
 		S:            new(big.Int),
 	}
 	if amount != nil {
 		d.Amount.Set(amount)
-	}
-	if gasPrice != nil {
-		d.Price.Set(gasPrice)
 	}
 
 	return &Transaction{data: d}
@@ -180,7 +177,7 @@ func (tx *Transaction) UnmarshalJSON(input []byte) error {
 
 func (tx *Transaction) Data() []byte       { return common.CopyBytes(tx.data.Payload) }
 func (tx *Transaction) Gas() uint64        { return tx.data.GasLimit }
-func (tx *Transaction) GasPrice() *big.Int { return new(big.Int).Set(tx.data.Price) }
+func (tx *Transaction) GasPrice() *big.Int { return big.NewInt(0) }
 func (tx *Transaction) Value() *big.Int    { return new(big.Int).Set(tx.data.Amount) }
 func (tx *Transaction) Nonce() uint64      { return tx.data.AccountNonce }
 func (tx *Transaction) CheckNonce() bool   { return true }
@@ -241,26 +238,18 @@ func (tx *Transaction) Size() common.StorageSize {
 // AsMessage requires a signer to derive the sender.
 //
 // XXX Rename message to something less arbitrary?
-func (tx *Transaction) AsMessage(s Signer, balanceFee *big.Int, number *big.Int) (Message, error) {
+func (tx *Transaction) AsMessage(s Signer, number *big.Int) (Message, error) {
 	msg := Message{
 		nonce:           tx.data.AccountNonce,
 		gasLimit:        tx.data.GasLimit,
-		gasPrice:        new(big.Int).Set(tx.data.Price),
+		gasPrice:        big.NewInt(0),
 		to:              tx.data.Recipient,
 		amount:          tx.data.Amount,
 		data:            tx.data.Payload,
 		checkNonce:      true,
-		balanceTokenFee: balanceFee,
 	}
 	var err error
 	msg.from, err = Sender(s, tx)
-	if balanceFee != nil {
-		if number.Cmp(common.TIPTRC21Fee) > 0 {
-			msg.gasPrice = common.TRC21GasPrice
-		} else {
-			msg.gasPrice = common.TRC21GasPriceBefore
-		}
-	}
 	return msg, err
 }
 
@@ -278,16 +267,12 @@ func (tx *Transaction) WithSignature(signer Signer, sig []byte) (*Transaction, e
 
 // Cost returns amount + gasprice * gaslimit.
 func (tx *Transaction) Cost() *big.Int {
-	total := new(big.Int).Mul(tx.data.Price, new(big.Int).SetUint64(tx.data.GasLimit))
-	total.Add(total, tx.data.Amount)
-	return total
+	return big.NewInt(0)
 }
 
 // Cost returns amount + gasprice * gaslimit.
 func (tx *Transaction) TRC21Cost() *big.Int {
-	total := new(big.Int).Mul(common.TRC21GasPrice, new(big.Int).SetUint64(tx.data.GasLimit))
-	total.Add(total, tx.data.Amount)
-	return total
+	return big.NewInt(0)
 }
 
 func (tx *Transaction) RawSignatureValues() (*big.Int, *big.Int, *big.Int) {
@@ -459,25 +444,11 @@ func (s TxByNonce) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
 // for all at once sorting as well as individually adding and removing elements.
 type TxByPrice struct {
 	txs        Transactions
-	payersSwap map[common.Address]*big.Int
 }
 
 func (s TxByPrice) Len() int { return len(s.txs) }
 func (s TxByPrice) Less(i, j int) bool {
-	i_price := s.txs[i].data.Price
-	if s.txs[i].To() != nil {
-		if _, ok := s.payersSwap[*s.txs[i].To()]; ok {
-			i_price = common.TRC21GasPrice
-		}
-	}
-
-	j_price := s.txs[j].data.Price
-	if s.txs[j].To() != nil {
-		if _, ok := s.payersSwap[*s.txs[j].To()]; ok {
-			j_price = common.TRC21GasPrice
-		}
-	}
-	return i_price.Cmp(j_price) > 0
+	return i < j
 }
 func (s TxByPrice) Swap(i, j int) { s.txs[i], s.txs[j] = s.txs[j], s.txs[i] }
 
@@ -509,10 +480,9 @@ type TransactionsByPriceAndNonce struct {
 // if after providing it to the constructor.
 
 // It also classifies special txs and normal txs
-func NewTransactionsByPriceAndNonce(signer Signer, txs map[common.Address]Transactions, signers map[common.Address]struct{}, payersSwap map[common.Address]*big.Int) (*TransactionsByPriceAndNonce, Transactions) {
+func NewTransactionsByPriceAndNonce(signer Signer, txs map[common.Address]Transactions, signers map[common.Address]struct{}) (*TransactionsByPriceAndNonce, Transactions) {
 	// Initialize a price based heap with the head transactions
 	heads := TxByPrice{}
-	heads.payersSwap = payersSwap
 	specialTxs := Transactions{}
 	for _, accTxs := range txs {
 		from, _ := Sender(signer, accTxs[0])
@@ -589,28 +559,22 @@ type Message struct {
 	gasPrice        *big.Int
 	data            []byte
 	checkNonce      bool
-	balanceTokenFee *big.Int
 }
 
-func NewMessage(from common.Address, to *common.Address, nonce uint64, amount *big.Int, gasLimit uint64, gasPrice *big.Int, data []byte, checkNonce bool, balanceTokenFee *big.Int) Message {
-	if balanceTokenFee != nil {
-		gasPrice = common.TRC21GasPrice
-	}
+func NewMessage(from common.Address, to *common.Address, nonce uint64, amount *big.Int, gasLimit uint64, data []byte, checkNonce bool) Message {
 	return Message{
 		from:            from,
 		to:              to,
 		nonce:           nonce,
 		amount:          amount,
 		gasLimit:        gasLimit,
-		gasPrice:        gasPrice,
+		gasPrice:        big.NewInt(0),
 		data:            data,
 		checkNonce:      checkNonce,
-		balanceTokenFee: balanceTokenFee,
 	}
 }
 
 func (m Message) From() common.Address      { return m.from }
-func (m Message) BalanceTokenFee() *big.Int { return m.balanceTokenFee }
 func (m Message) To() *common.Address       { return m.to }
 func (m Message) GasPrice() *big.Int        { return m.gasPrice }
 func (m Message) Value() *big.Int           { return m.amount }
