@@ -305,7 +305,7 @@ func (w *wizard) makeGenesis() {
 		subBalance.Add(subBalance, big.NewInt(int64(len(signers))*50*1000))
 		subBalance.Mul(subBalance, big.NewInt(1000000000000000000))
 		balance.Sub(balance, subBalance) // 12m - i * 50k
-		genesis.Alloc[common.HexToAddress(common.TeamAddr)] = core.GenesisAccount{
+		genesis.Alloc[common.HexToAddress(common.ConfigRewardAddr)] = core.GenesisAccount{
 			Balance: balance,
 			Code:    code,
 			Storage: storage,

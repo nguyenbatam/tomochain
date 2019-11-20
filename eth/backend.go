@@ -500,8 +500,6 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 				// Get signers in blockSigner smartcontract.
 				// Get reward inflation.
 				chainReward := new(big.Int).Mul(new(big.Int).SetUint64(chain.Config().Posv.Reward), new(big.Int).SetUint64(params.Ether))
-				chainReward = rewardInflation(chainReward, number, common.BlocksPerYear)
-
 				totalSigner := new(uint64)
 				signers, err := contracts.GetRewardForCheckpoint(c, chain, header, rCheckpoint, totalSigner)
 

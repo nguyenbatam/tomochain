@@ -420,44 +420,13 @@ func CalculateRewardForHolders(foundationWalletAddr common.Address, state *state
 func GetRewardBalancesRate(foundationWalletAddr common.Address, state *state.StateDB, masterAddr common.Address, totalReward *big.Int, blockNumber uint64) (map[common.Address]*big.Int, error) {
 	owner := GetCandidatesOwnerBySigner(state, masterAddr)
 	balances := make(map[common.Address]*big.Int)
-	rewardMaster := new(big.Int).Mul(totalReward, new(big.Int).SetInt64(common.RewardMasterPercent))
-	rewardMaster = new(big.Int).Div(rewardMaster, new(big.Int).SetInt64(100))
+	masterPercent := stateDatabase.GetRewardMasterPercent(state)
+	rewardMaster := new(big.Int).Mul(totalReward, masterPercent)
+	rewardMaster = new(big.Int).Div(rewardMaster, stateDatabase.MaxPercent)
 	balances[owner] = rewardMaster
-	// Get voters for masternode.
-	voters := stateDatabase.GetVoters(state, masterAddr)
-
-	if len(voters) > 0 {
-		totalVoterReward := new(big.Int).Mul(totalReward, new(big.Int).SetUint64(common.RewardVoterPercent))
-		totalVoterReward = new(big.Int).Div(totalVoterReward, new(big.Int).SetUint64(100))
-		totalCap := new(big.Int)
-		// Get voters capacities.
-		voterCaps := make(map[common.Address]*big.Int)
-		for _, voteAddr := range voters {
-			if _, ok := voterCaps[voteAddr]; ok && common.TIP2019Block.Uint64() <= blockNumber {
-				continue
-			}
-			voterCap := stateDatabase.GetVoterCap(state, masterAddr, voteAddr)
-			totalCap.Add(totalCap, voterCap)
-			voterCaps[voteAddr] = voterCap
-		}
-		if totalCap.Cmp(new(big.Int).SetInt64(0)) > 0 {
-			for addr, voteCap := range voterCaps {
-				// Only valid voter has cap > 0.
-				if voteCap.Cmp(new(big.Int).SetInt64(0)) > 0 {
-					rcap := new(big.Int).Mul(totalVoterReward, voteCap)
-					rcap = new(big.Int).Div(rcap, totalCap)
-					if balances[addr] != nil {
-						balances[addr].Add(balances[addr], rcap)
-					} else {
-						balances[addr] = rcap
-					}
-				}
-			}
-		}
-	}
-
-	foundationReward := new(big.Int).Mul(totalReward, new(big.Int).SetInt64(common.RewardFoundationPercent))
-	foundationReward = new(big.Int).Div(foundationReward, new(big.Int).SetInt64(100))
+	foundationPercent:=new(big.Int).Sub(stateDatabase.MaxPercent,masterPercent)
+	foundationReward := new(big.Int).Mul(totalReward, foundationPercent)
+	foundationReward = new(big.Int).Div(foundationReward, stateDatabase.MaxPercent)
 	balances[foundationWalletAddr] = foundationReward
 
 	jsonHolders, err := json.Marshal(balances)

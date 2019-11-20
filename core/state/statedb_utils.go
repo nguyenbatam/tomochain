@@ -143,3 +143,26 @@ func GetVoterCap(statedb *StateDB, candidate, voter common.Address) *big.Int {
 	ret := statedb.GetState(common.HexToAddress(common.MasternodeVotingSMC), common.BytesToHash(retByte))
 	return ret.Big()
 }
+
+var (
+	slotConfigRewardMapping = map[string]uint64{
+		"MAX_OWNER_COUNT": 0,
+		"nodeRate":        1,
+	}
+	MaxPercent = big.NewInt(100)
+	minPercent =big.NewInt(0)
+)
+
+func GetRewardMasterPercent(statedb *StateDB) *big.Int {
+	slot := slotValidatorMapping["nodeRate"]
+	locMasterNodeRate := GetLocSimpleVariable(slot)
+	ret := statedb.GetState(common.HexToAddress(common.ConfigRewardAddr), locMasterNodeRate)
+	rate := ret.Big()
+	if rate.Cmp(MaxPercent) > 0 {
+		rate = MaxPercent
+	}
+	if rate.Cmp(minPercent) < 0 {
+		rate = minPercent
+	}
+	return rate
+}
