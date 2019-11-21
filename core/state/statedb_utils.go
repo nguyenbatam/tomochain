@@ -1,6 +1,7 @@
 package state
 
 import (
+	"github.com/ethereum/go-ethereum/log"
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -150,7 +151,7 @@ var (
 		"nodeRate":        1,
 	}
 	MaxPercent = big.NewInt(100)
-	minPercent =big.NewInt(0)
+	minPercent = big.NewInt(0)
 )
 
 func GetRewardMasterPercent(statedb *StateDB) *big.Int {
@@ -164,5 +165,6 @@ func GetRewardMasterPercent(statedb *StateDB) *big.Int {
 	if rate.Cmp(minPercent) < 0 {
 		rate = minPercent
 	}
+	log.Debug("GetRewardMasterPercent", "rate", rate)
 	return rate
 }

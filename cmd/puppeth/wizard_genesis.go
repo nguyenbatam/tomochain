@@ -35,6 +35,7 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind/backends"
 	blockSignerContract "github.com/ethereum/go-ethereum/contracts/blocksigner"
+	rewardContract "github.com/ethereum/go-ethereum/contracts/configreward"
 	multiSignWalletContract "github.com/ethereum/go-ethereum/contracts/multisigwallet"
 	randomizeContract "github.com/ethereum/go-ethereum/contracts/randomize"
 	validatorContract "github.com/ethereum/go-ethereum/contracts/validator"
@@ -113,17 +114,17 @@ func (w *wizard) makeGenesis() {
 	case choice == "" || choice == "3":
 		genesis.Difficulty = big.NewInt(1)
 		genesis.Config.Posv = &params.PosvConfig{
-			Period: 15,
-			Epoch:  30000,
-			Reward: 0,
+			Period: 900,
+			Epoch:  3,
+			Reward: 250,
 		}
 		fmt.Println()
-		fmt.Println("How many seconds should blocks take? (default = 2)")
-		genesis.Config.Posv.Period = uint64(w.readDefaultInt(2))
+		fmt.Println("How many seconds should blocks take? (default = 3)")
+		genesis.Config.Posv.Period = uint64(w.readDefaultInt(3))
 
 		fmt.Println()
-		fmt.Println("How many Ethers should be rewarded to masternode? (default = 10)")
-		genesis.Config.Posv.Reward = uint64(w.readDefaultInt(10))
+		fmt.Println("How many Ethers should be rewarded to masternode? (default = 250)")
+		genesis.Config.Posv.Reward = uint64(w.readDefaultInt(250))
 
 		fmt.Println()
 		fmt.Println("Who own the first masternodes? (mandatory)")
@@ -167,11 +168,11 @@ func (w *wizard) makeGenesis() {
 		genesis.Config.Posv.RewardCheckpoint = epochNumber
 
 		fmt.Println()
-		fmt.Println("How many blocks before checkpoint need to prepare new set of masternodes? (default = 450)")
-		genesis.Config.Posv.Gap = uint64(w.readDefaultInt(450))
+		fmt.Println("How many blocks before checkpoint need to prepare new set of masternodes? (default = 5)")
+		genesis.Config.Posv.Gap = uint64(w.readDefaultInt(5))
 
 		fmt.Println()
-		fmt.Println("What is foundation wallet address? (default = 0x0000000000000000000000000000000000000068)")
+		fmt.Println("What is foundation wallet address? (default = 0x000000000000000000000000000000000000000A)")
 		genesis.Config.Posv.FoudationWalletAddr = w.readDefaultAddress(common.HexToAddress(common.FoudationAddr))
 
 		// Validator Smart Contract Code
@@ -218,12 +219,10 @@ func (w *wizard) makeGenesis() {
 				break
 			}
 		}
-		fmt.Println()
-		fmt.Println("How many require for confirm tx in Foudation MultiSignWallet? (default = 2)")
-		required := int64(w.readDefaultInt(2))
+		required := big.NewInt(int64(len(owners)))
 
-		// MultiSigWallet.
-		multiSignWalletAddr, _, err := multiSignWalletContract.DeployMultiSigWallet(transactOpts, contractBackend, owners, big.NewInt(required))
+		// FoundationWallet
+		multiSignWalletAddr, _, err := multiSignWalletContract.DeployMultiSigWallet(transactOpts, contractBackend, owners, required)
 		if err != nil {
 			fmt.Println("Can't deploy MultiSignWallet SMC")
 		}
@@ -231,11 +230,23 @@ func (w *wizard) makeGenesis() {
 		code, _ = contractBackend.CodeAt(ctx, multiSignWalletAddr, nil)
 		storage = make(map[common.Hash]common.Hash)
 		contractBackend.ForEachStorageAt(ctx, multiSignWalletAddr, nil, f)
-		fBalance := big.NewInt(0) // 16m
-		fBalance.Add(fBalance, big.NewInt(16*1000*1000))
-		fBalance.Mul(fBalance, big.NewInt(1000000000000000000))
 		genesis.Alloc[common.HexToAddress(common.FoudationAddr)] = core.GenesisAccount{
-			Balance: fBalance,
+			Balance: big.NewInt(0),
+			Code:    code,
+			Storage: storage,
+		}
+
+		// ConfigReward Smc.
+		multiSignConfigRewardAddr, _, err := rewardContract.DeployConfigReward(transactOpts, contractBackend, owners, required)
+		if err != nil {
+			fmt.Println("Can't deploy MultiSign Config Reward SMC")
+		}
+		contractBackend.Commit()
+		code, _ = contractBackend.CodeAt(ctx, multiSignConfigRewardAddr, nil)
+		storage = make(map[common.Hash]common.Hash)
+		contractBackend.ForEachStorageAt(ctx, multiSignConfigRewardAddr, nil, f)
+		genesis.Alloc[common.HexToAddress(common.ConfigRewardAddr)] = core.GenesisAccount{
+			Balance: big.NewInt(0),
 			Code:    code,
 			Storage: storage,
 		}
@@ -272,70 +283,8 @@ func (w *wizard) makeGenesis() {
 			Storage: storage,
 		}
 
-		fmt.Println()
-		fmt.Println("Which accounts are allowed to confirm in Team MultiSignWallet?")
-		var teams []common.Address
-		for {
-			if address := w.readAddress(); address != nil {
-				teams = append(teams, *address)
-				continue
-			}
-			if len(teams) > 0 {
-				break
-			}
-		}
-		fmt.Println()
-		fmt.Println("How many require for confirm tx in Team MultiSignWallet? (default = 2)")
-		required = int64(w.readDefaultInt(2))
-
-		// MultiSigWallet.
-		multiSignWalletTeamAddr, _, err := multiSignWalletContract.DeployMultiSigWallet(transactOpts, contractBackend, teams, big.NewInt(required))
-		if err != nil {
-			fmt.Println("Can't deploy MultiSignWallet SMC")
-		}
-		contractBackend.Commit()
-		code, _ = contractBackend.CodeAt(ctx, multiSignWalletTeamAddr, nil)
-		storage = make(map[common.Hash]common.Hash)
-		contractBackend.ForEachStorageAt(ctx, multiSignWalletTeamAddr, nil, f)
-		// Team balance.
-		balance := big.NewInt(0) // 12m
-		balance.Add(balance, big.NewInt(12*1000*1000))
-		balance.Mul(balance, big.NewInt(1000000000000000000))
-		subBalance := big.NewInt(0) // i * 50k
-		subBalance.Add(subBalance, big.NewInt(int64(len(signers))*50*1000))
-		subBalance.Mul(subBalance, big.NewInt(1000000000000000000))
-		balance.Sub(balance, subBalance) // 12m - i * 50k
-		genesis.Alloc[common.HexToAddress(common.ConfigRewardAddr)] = core.GenesisAccount{
-			Balance: balance,
-			Code:    code,
-			Storage: storage,
-		}
-
-		fmt.Println()
-		fmt.Println("What is swap wallet address for fund 55m tomo?")
-		swapAddr := *w.readAddress()
-		baseBalance := big.NewInt(0) // 55m
-		baseBalance.Add(baseBalance, big.NewInt(55*1000*1000))
-		baseBalance.Mul(baseBalance, big.NewInt(1000000000000000000))
-		genesis.Alloc[swapAddr] = core.GenesisAccount{
-			Balance: baseBalance,
-		}
-
 	default:
 		log.Crit("Invalid consensus engine choice", "choice", choice)
-	}
-	// Consensus all set, just ask for initial funds and go
-	fmt.Println()
-	fmt.Println("Which accounts should be pre-funded? (advisable at least one)")
-	for {
-		// Read the address of the account to fund
-		if address := w.readAddress(); address != nil {
-			genesis.Alloc[*address] = core.GenesisAccount{
-				Balance: new(big.Int).Lsh(big.NewInt(1), 256-7), // 2^256 / 128 (allow many pre-funds without balance overflows)
-			}
-			continue
-		}
-		break
 	}
 	// Add a batch of precompile balances to avoid them getting deleted
 	for i := int64(0); i < 2; i++ {
