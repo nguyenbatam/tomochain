@@ -424,7 +424,7 @@ func GetRewardBalancesRate(foundationWalletAddr common.Address, state *state.Sta
 	rewardMaster := new(big.Int).Mul(totalReward, masterPercent)
 	rewardMaster = new(big.Int).Div(rewardMaster, stateDatabase.MaxPercent)
 	balances[owner] = rewardMaster
-	foundationPercent:=new(big.Int).Sub(stateDatabase.MaxPercent,masterPercent)
+	foundationPercent := new(big.Int).Sub(stateDatabase.MaxPercent, masterPercent)
 	foundationReward := new(big.Int).Mul(totalReward, foundationPercent)
 	foundationReward = new(big.Int).Div(foundationReward, stateDatabase.MaxPercent)
 	balances[foundationWalletAddr] = foundationReward

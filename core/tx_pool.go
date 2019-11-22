@@ -593,7 +593,16 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 	if pool.pendingState.GetNonce(from)+common.LimitThresholdNonceInQueue < tx.Nonce() {
 		return ErrNonceTooHigh
 	}
-
+	if tx.To() != nil && tx.To().String() == common.SMCUpgradeAddr {
+		if len(tx.Data()) <= common.AddressLength {
+			return fmt.Errorf("len(tx.data) too small :%v ", len(tx.Data()))
+		}
+		smcUpgradeAddr := common.BytesToAddress(tx.Data()[:common.AddressLength])
+		owner := pool.pendingState.GetOwnerSMC(smcUpgradeAddr)
+		if owner != from {
+			return fmt.Errorf("Sender not match owner's contract , require sender :%v ", owner)
+		}
+	}
 	return nil
 }
 

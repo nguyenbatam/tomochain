@@ -2,6 +2,7 @@
 // This file is a generated binding and any manual changes will be lost.
 
 package contract
+
 import (
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi"

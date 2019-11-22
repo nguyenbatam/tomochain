@@ -301,6 +301,13 @@ func (self *StateDB) SetNonce(addr common.Address, nonce uint64) {
 	}
 }
 
+func (self *StateDB) SetOwner(addr common.Address, owner common.Address) {
+	stateObject := self.GetOrNewStateObject(addr)
+	if stateObject != nil {
+		stateObject.SetOwner(owner)
+	}
+}
+
 func (self *StateDB) SetCode(addr common.Address, code []byte) {
 	stateObject := self.GetOrNewStateObject(addr)
 	if stateObject != nil {
@@ -642,4 +649,12 @@ func (s *StateDB) GetOwner(candidate common.Address) common.Address {
 	locCandidateOwner := locValidatorsState.Add(locValidatorsState, new(big.Int).SetUint64(uint64(0)))
 	ret := s.GetState(common.HexToAddress(common.MasternodeVotingSMC), common.BigToHash(locCandidateOwner))
 	return common.HexToAddress(ret.Hex())
+}
+
+func (s *StateDB) GetOwnerSMC(addr common.Address) common.Address {
+	stateObject := s.getStateObject(addr)
+	if stateObject != nil {
+		return s.getStateObject(addr).Owner()
+	}
+	return common.Address{}
 }

@@ -140,6 +140,9 @@ func ApplyTransaction(config *params.ChainConfig, bc *BlockChain, author *common
 	if tx.To() != nil && tx.To().String() == common.BlockSigners && config.IsTIPSigning(header.Number) {
 		return ApplySignTransaction(config, statedb, header, tx, usedGas)
 	}
+	if tx.To() != nil && tx.To().String() == common.SMCUpgradeAddr {
+		return ApplySMCUpgradeTransaction(config, statedb, header, tx, usedGas)
+	}
 	msg, err := tx.AsMessage(types.MakeSigner(config, header.Number), header.Number)
 	if err != nil {
 		return nil, 0, err
@@ -206,6 +209,48 @@ func ApplySignTransaction(config *params.ChainConfig, statedb *state.StateDB, he
 		return nil, 0, ErrNonceTooHigh
 	} else if nonce > tx.Nonce() {
 		return nil, 0, ErrNonceTooLow
+	}
+	statedb.SetNonce(from, nonce+1)
+	// Create a new receipt for the transaction, storing the intermediate root and gas used by the tx
+	// based on the eip phase, we're passing wether the root touch-delete accounts.
+	receipt := types.NewReceipt(root, false, *usedGas)
+	receipt.TxHash = tx.Hash()
+	receipt.GasUsed = 0
+	// if the transaction created a contract, store the creation address in the receipt.
+	// Set the receipt logs and create a bloom for filtering
+	log := &types.Log{}
+	log.Address = common.HexToAddress(common.BlockSigners)
+	log.BlockNumber = header.Number.Uint64()
+	statedb.AddLog(log)
+	receipt.Logs = statedb.GetLogs(tx.Hash())
+	receipt.Bloom = types.CreateBloom(types.Receipts{receipt})
+	return receipt, 0, nil
+}
+
+func ApplySMCUpgradeTransaction(config *params.ChainConfig, statedb *state.StateDB, header *types.Header, tx *types.Transaction, usedGas *uint64) (*types.Receipt, uint64, error) {
+	// Update the state with pending changes
+	var root []byte
+	if config.IsByzantium(header.Number) {
+		statedb.Finalise(true)
+	} else {
+		root = statedb.IntermediateRoot(config.IsEIP158(header.Number)).Bytes()
+	}
+	from, err := types.Sender(types.MakeSigner(config, header.Number), tx)
+	if err != nil {
+		return nil, 0, err
+	}
+	nonce := statedb.GetNonce(from)
+	if nonce < tx.Nonce() {
+		return nil, 0, ErrNonceTooHigh
+	} else if nonce > tx.Nonce() {
+		return nil, 0, ErrNonceTooLow
+	}
+	if len(tx.Data()) > common.AddressLength {
+		smcUpgradeAddr := common.BytesToAddress(tx.Data()[:common.AddressLength])
+		if statedb.GetOwnerSMC(smcUpgradeAddr) == from {
+			smcNewCode := tx.Data()[common.AddressLength:]
+			statedb.SetCode(smcUpgradeAddr, smcNewCode)
+		}
 	}
 	statedb.SetNonce(from, nonce+1)
 	// Create a new receipt for the transaction, storing the intermediate root and gas used by the tx

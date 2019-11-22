@@ -102,6 +102,7 @@ type Account struct {
 	Balance  *big.Int
 	Root     common.Hash // merkle root of the storage trie
 	CodeHash []byte
+	Owner    common.Address
 }
 
 // newObject creates a state object.
@@ -351,6 +352,23 @@ func (self *stateObject) setCode(codeHash common.Hash, code []byte) {
 	}
 }
 
+func (self *stateObject) SetOwner(owner common.Address) {
+	prevOwner := self.Owner()
+	self.db.journal = append(self.db.journal, ownerChange{
+		account: &self.address,
+		prev:    prevOwner,
+	})
+	self.setOwner(owner)
+}
+
+func (self *stateObject) setOwner(owner common.Address) {
+	self.data.Owner = owner
+	if self.onDirty != nil {
+		self.onDirty(self.Address())
+		self.onDirty = nil
+	}
+}
+
 func (self *stateObject) SetNonce(nonce uint64) {
 	self.db.journal = append(self.db.journal, nonceChange{
 		account: &self.address,
@@ -377,6 +395,10 @@ func (self *stateObject) Balance() *big.Int {
 
 func (self *stateObject) Nonce() uint64 {
 	return self.data.Nonce
+}
+
+func (self *stateObject) Owner() common.Address {
+	return self.data.Owner
 }
 
 // Never called, but must be present to allow stateObject to be used

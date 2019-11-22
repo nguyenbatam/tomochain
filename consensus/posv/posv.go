@@ -1278,6 +1278,7 @@ func (c *Posv) CheckMNTurn(chain consensus.ChainReader, parent *types.Header, si
 	curIndex := position(masternodes, signer)
 	if (preIndex)%len(masternodes) == curIndex {
 		return true
+	} else {
+		return false
 	}
-	return false
 }

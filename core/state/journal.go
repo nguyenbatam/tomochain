@@ -59,7 +59,10 @@ type (
 		account            *common.Address
 		prevcode, prevhash []byte
 	}
-
+	ownerChange struct {
+		account *common.Address
+		prev    common.Address
+	}
 	// Changes to other state values.
 	refundChange struct {
 		prev uint64
@@ -111,6 +114,10 @@ func (ch balanceChange) undo(s *StateDB) {
 
 func (ch nonceChange) undo(s *StateDB) {
 	s.getStateObject(*ch.account).setNonce(ch.prev)
+}
+
+func (ch ownerChange) undo(s *StateDB) {
+	s.getStateObject(*ch.account).setOwner(ch.prev)
 }
 
 func (ch codeChange) undo(s *StateDB) {

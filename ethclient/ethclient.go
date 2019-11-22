@@ -255,7 +255,7 @@ func (ec *Client) TransactionReceipt(ctx context.Context, txHash common.Hash) (*
 
 func (ec *Client) GetTransactionReceiptResult(ctx context.Context, txHash common.Hash) (*types.Receipt, json.RawMessage, error) {
 	var r *types.Receipt
-	result, err := ec.c.GetResultCallContext(ctx, &r,"eth_getTransactionReceipt", txHash)
+	result, err := ec.c.GetResultCallContext(ctx, &r, "eth_getTransactionReceipt", txHash)
 	if err == nil {
 		if r == nil {
 			return nil, nil, ethereum.NotFound
