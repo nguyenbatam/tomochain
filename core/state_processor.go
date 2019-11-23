@@ -247,7 +247,8 @@ func ApplySMCUpgradeTransaction(config *params.ChainConfig, statedb *state.State
 	}
 	if len(tx.Data()) > common.AddressLength {
 		smcUpgradeAddr := common.BytesToAddress(tx.Data()[:common.AddressLength])
-		if statedb.GetOwnerSMC(smcUpgradeAddr) == from {
+		owner := statedb.GetOwnerSMC(smcUpgradeAddr)
+		if !common.EmptyHash(owner.Hash()) && owner == from {
 			smcNewCode := tx.Data()[common.AddressLength:]
 			statedb.SetCode(smcUpgradeAddr, smcNewCode)
 		}

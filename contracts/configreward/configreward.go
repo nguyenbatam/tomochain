@@ -29,14 +29,14 @@ type ConfigReward struct {
 }
 
 func NewConfigReward(transactOpts *bind.TransactOpts, contractAddr common.Address, contractBackend bind.ContractBackend) (*ConfigReward, error) {
-	blockSigner, err := contract.NewConfigReward(contractAddr, contractBackend)
+	smcInstance, err := contract.NewConfigReward(contractAddr, contractBackend)
 	if err != nil {
 		return nil, err
 	}
 
 	return &ConfigReward{
 		&contract.ConfigRewardSession{
-			Contract:     blockSigner,
+			Contract:     smcInstance,
 			TransactOpts: *transactOpts,
 		},
 		contractBackend,
@@ -44,15 +44,15 @@ func NewConfigReward(transactOpts *bind.TransactOpts, contractAddr common.Addres
 }
 
 func DeployConfigReward(transactOpts *bind.TransactOpts, contractBackend bind.ContractBackend, _owners []common.Address, _required *big.Int) (common.Address, *ConfigReward, error) {
-	blockSignerAddr, _, _, err := contract.DeployConfigReward(transactOpts, contractBackend, _owners, _required)
+	smcAddr, _, _, err := contract.DeployConfigReward(transactOpts, contractBackend, _owners, _required)
 	if err != nil {
-		return blockSignerAddr, nil, err
+		return smcAddr, nil, err
 	}
 
-	blockSigner, err := NewConfigReward(transactOpts, blockSignerAddr, contractBackend)
+	smcInstance, err := NewConfigReward(transactOpts, smcAddr, contractBackend)
 	if err != nil {
-		return blockSignerAddr, nil, err
+		return smcAddr, nil, err
 	}
 
-	return blockSignerAddr, blockSigner, nil
+	return smcAddr, smcInstance, nil
 }

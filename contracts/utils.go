@@ -386,8 +386,8 @@ func CalculateRewardForSigner(chainReward *big.Int, signers map[common.Address]*
 		for signer, rLog := range signers {
 			// Add reward for signer.
 			calcReward := new(big.Int)
-			calcReward.Div(chainReward, new(big.Int).SetUint64(totalSigner))
 			calcReward.Mul(calcReward, new(big.Int).SetUint64(rLog.Sign))
+			calcReward.Div(chainReward, new(big.Int).SetUint64(totalSigner))
 			rLog.Reward = calcReward
 
 			resultSigners[signer] = calcReward

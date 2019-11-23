@@ -317,8 +317,6 @@ func startNode(ctx *cli.Context, stack *node.Node, cfg tomoConfig) {
 						th.SetThreads(threads)
 					}
 				}
-				// Set the gas price to the limits from the CLI and start mining
-				ethereum.TxPool().SetGasPrice(cfg.Eth.GasPrice)
 				if err := ethereum.StartStaking(true); err != nil {
 					utils.Fatalf("Failed to start staking: %v", err)
 				}
@@ -357,8 +355,6 @@ func startNode(ctx *cli.Context, stack *node.Node, cfg tomoConfig) {
 							th.SetThreads(threads)
 						}
 					}
-					// Set the gas price to the limits from the CLI and start mining
-					ethereum.TxPool().SetGasPrice(cfg.Eth.GasPrice)
 					if err := ethereum.StartStaking(true); err != nil {
 						utils.Fatalf("Failed to start staking: %v", err)
 					}
