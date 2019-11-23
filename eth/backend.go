@@ -481,7 +481,7 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 		}
 
 		// Hook calculates reward for masternodes
-		c.HookReward = func(chain consensus.ChainReader, stateBlock *state.StateDB, header *types.Header) (error, map[string]interface{}) {
+		c.HookReward = func(chain consensus.ChainReader, stateBlock *state.StateDB, header *types.Header) (error, map[common.Address]*big.Int) {
 			parentHeader := eth.blockchain.GetHeader(header.ParentHash, header.Number.Uint64()-1)
 			canonicalState, err := eth.blockchain.StateAt(parentHeader.Root)
 			if canonicalState == nil || err != nil {
@@ -494,42 +494,19 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 				log.Error("Foundation Wallet Address is empty", "error", foundationWalletAddr)
 				return err, nil
 			}
-			rewards := make(map[string]interface{})
-			if number > 0 && number-rCheckpoint > 0 && foundationWalletAddr != (common.Address{}) {
-				start := time.Now()
+			rewards := make(map[common.Address]*big.Int)
+			if number > 0 && number >= rCheckpoint && foundationWalletAddr != (common.Address{}) {
 				// Get signers in blockSigner smartcontract.
 				// Get reward inflation.
 				chainReward := new(big.Int).Mul(new(big.Int).SetUint64(chain.Config().Posv.Reward), new(big.Int).SetUint64(params.Ether))
-				totalSigner := new(uint64)
-				signers, err := contracts.GetRewardForCheckpoint(c, chain, header, rCheckpoint, totalSigner)
-
-				log.Debug("Time Get Signers", "block", header.Number.Uint64(), "time", common.PrettyDuration(time.Since(start)))
+				masternodes := contracts.GetMasterNodeCheckpoint(c, chain, header, rCheckpoint)
 				if err != nil {
 					log.Crit("Fail to get signers for reward checkpoint", "error", err)
 				}
-				rewards["signers"] = signers
-				rewardSigners, err := contracts.CalculateRewardForSigner(chainReward, signers, *totalSigner)
-				if err != nil {
-					log.Crit("Fail to calculate reward for signers", "error", err)
+				rewards = contracts.GetRewardBalances(foundationWalletAddr, canonicalState, masternodes, chainReward)
+				for holder, reward := range rewards {
+					stateBlock.AddBalance(holder, reward)
 				}
-				// Add reward for coin holders.
-				voterResults := make(map[common.Address]interface{})
-				if len(signers) > 0 {
-					for signer, calcReward := range rewardSigners {
-						err, rewards := contracts.CalculateRewardForHolders(foundationWalletAddr, canonicalState, signer, calcReward, number)
-						if err != nil {
-							log.Crit("Fail to calculate reward for holders.", "error", err)
-						}
-						if len(rewards) > 0 {
-							for holder, reward := range rewards {
-								stateBlock.AddBalance(holder, reward)
-							}
-						}
-						voterResults[signer] = rewards
-					}
-				}
-				rewards["rewards"] = voterResults
-				log.Debug("Time Calculated HookReward ", "block", header.Number.Uint64(), "time", common.PrettyDuration(time.Since(start)))
 			}
 			return nil, rewards
 		}

@@ -312,7 +312,7 @@ func (pool *TxPool) loop() {
 			//stales := pool.priced.stales
 			pool.mu.RUnlock()
 
-			if pending != prevPending || queued != prevQueued{
+			if pending != prevPending || queued != prevQueued {
 				log.Debug("Transaction pool status report", "executable", pending, "queued", queued)
 				prevPending, prevQueued = pending, queued
 			}
@@ -651,7 +651,7 @@ func (pool *TxPool) add(tx *types.Transaction, local bool) (bool, error) {
 	// If the transaction pool is full, discard underpriced transactions
 	if uint64(len(pool.all)) >= pool.config.GlobalSlots+pool.config.GlobalQueue {
 		log.Debug("Add transaction to pool full", "hash", hash, "nonce", tx.Nonce())
-		return false, errors.New("Pool & Queue transaction full");
+		return false, errors.New("Pool & Queue transaction full")
 	}
 	// New transaction isn't replacing a pending one, push into queue
 	replace, err := pool.enqueueTx(hash, tx)
@@ -922,7 +922,7 @@ func (pool *TxPool) removeTx(hash common.Hash) {
 // invalidated transactions (low nonce, low balance) are deleted.
 func (pool *TxPool) promoteExecutables(accounts []common.Address) {
 	start := time.Now()
-	log.Debug("start promoteExecutables",)
+	log.Debug("start promoteExecutables")
 	defer log.Debug("end promoteExecutables", "time", common.PrettyDuration(time.Since(start)))
 	// Gather all the accounts potentially needing updates
 	if accounts == nil {

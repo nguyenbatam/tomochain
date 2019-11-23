@@ -3,7 +3,6 @@
 
 package contract
 
-
 import (
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
@@ -18,6 +17,7 @@ const Contract1ABI = "[{\"constant\":false,\"inputs\":[],\"name\":\"subA\",\"out
 
 // Contract1Bin is the compiled bytecode used for deploying new contracts.
 const Contract1Bin = `0x608060405234801561001057600080fd5b5060ea8061001f6000396000f30060806040526004361060525763ffffffff7c010000000000000000000000000000000000000000000000000000000060003504166347860cd381146057578063d46300fd14606b578063f33b859714608f575b600080fd5b348015606257600080fd5b50606960a1565b005b348015607657600080fd5b50607d60ad565b60408051918252519081900360200190f35b348015609a57600080fd5b50606960b3565b60008054600019019055565b60005490565b6000805460010190555600a165627a7a72305820582b2f70e6306b2c4829ef14f20900d071de2d8281edb51b53fb39783caa88b70029`
+
 // DeployContract1 deploys a new Ethereum contract, binding an instance of Contract1 to it.
 func DeployContract1(auth *bind.TransactOpts, backend bind.ContractBackend) (common.Address, *types.Transaction, *Contract1, error) {
 	parsed, err := abi.JSON(strings.NewReader(Contract1ABI))

@@ -37,6 +37,7 @@ type Contract2 struct {
 	Contract2Transactor // Write-only binding to the contract
 	Contract2Filterer   // Log filterer for contract events
 }
+
 // Contract2Caller is an auto generated read-only Go binding around an Ethereum contract.
 type Contract2Caller struct {
 	contract *bind.BoundContract // Generic contract wrapper for the low level calls

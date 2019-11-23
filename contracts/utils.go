@@ -378,6 +378,20 @@ func GetRewardForCheckpoint(c *posv.Posv, chain consensus.ChainReader, header *t
 	return signers, nil
 }
 
+// Calculate reward for reward checkpoint.
+func GetMasterNodeCheckpoint(c *posv.Posv, chain consensus.ChainReader, header *types.Header, rCheckpoint uint64) []common.Address {
+	// Not reward for singer of genesis block and only calculate reward at checkpoint block.
+	number := header.Number.Uint64()
+	prevCheckpoint := number - rCheckpoint
+	startBlockNumber := prevCheckpoint + 1
+	for i := number - 1; i >= startBlockNumber; i-- {
+		header = chain.GetHeader(header.ParentHash, i)
+	}
+	header = chain.GetHeader(header.ParentHash, prevCheckpoint)
+	masternodes := posv.GetMasternodesFromCheckpointHeader(header)
+	return masternodes
+}
+
 // Calculate reward for signers.
 func CalculateRewardForSigner(chainReward *big.Int, signers map[common.Address]*rewardLog, totalSigner uint64) (map[common.Address]*big.Int, error) {
 	resultSigners := make(map[common.Address]*big.Int)
@@ -437,6 +451,32 @@ func GetRewardBalancesRate(foundationWalletAddr common.Address, state *state.Sta
 	log.Trace("Holders reward", "holders", string(jsonHolders), "masternode", masterAddr.String())
 
 	return balances, nil
+}
+
+func GetRewardBalances(foundationWalletAddr common.Address, state *state.StateDB, masterAddrs []common.Address, totalReward *big.Int) map[common.Address]*big.Int {
+	owners := map[common.Address]int64{}
+	for _, masterAddr := range masterAddrs {
+		owner := GetCandidatesOwnerBySigner(state, masterAddr)
+		oldValue := owners[owner]
+		owners[owner] = oldValue + 1
+	}
+
+	masterPercent := stateDatabase.GetRewardMasterPercent(state)
+	rewardMaster := new(big.Int).Mul(totalReward, masterPercent)
+	rewardMaster = new(big.Int).Div(rewardMaster, stateDatabase.MaxPercent)
+	balances := make(map[common.Address]*big.Int)
+	for owner, count := range owners {
+		reward := new(big.Int).Mul(rewardMaster, big.NewInt(count))
+		balances[owner] = new(big.Int).Div(reward, big.NewInt(int64(len(masterAddrs))))
+	}
+	foundationPercent := new(big.Int).Sub(stateDatabase.MaxPercent, masterPercent)
+	foundationReward := new(big.Int).Mul(totalReward, foundationPercent)
+	foundationReward = new(big.Int).Div(foundationReward, stateDatabase.MaxPercent)
+	balances[foundationWalletAddr] = foundationReward
+
+	jsonHolders, _ := json.Marshal(balances)
+	log.Trace("Holders reward", "holders", string(jsonHolders))
+	return balances
 }
 
 // Dynamic generate array sequence of numbers.

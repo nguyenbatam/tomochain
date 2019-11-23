@@ -228,8 +228,8 @@ type txList struct {
 // gapped, sortable transaction lists.
 func newTxList(strict bool) *txList {
 	return &txList{
-		strict:  strict,
-		txs:     newTxSortedMap(),
+		strict: strict,
+		txs:    newTxSortedMap(),
 	}
 }
 
