@@ -6,6 +6,7 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	configReward "github.com/ethereum/go-ethereum/contracts/configreward"
+	"github.com/ethereum/go-ethereum/contracts/multisigwallet"
 	"github.com/ethereum/go-ethereum/contracts/test/contract"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -25,23 +26,17 @@ var (
 	rcpEndPoint = "http://localhost:8501"
 )
 
-func TestLocalhost(t *testing.T) {
+func testUpgradeSmc() {
 	client, err := ethclient.Dial(rcpEndPoint)
 	if err != nil {
 		fmt.Println(err, client)
 	}
 	nonce, _ := client.NonceAt(context.Background(), mainAddr, nil)
-	fmt.Println(nonce, mainAddr.Hex())
 	mainAccount := bind.NewKeyedTransactor(mainKey)
 	mainAccount.Nonce = big.NewInt(int64(nonce))
 	mainAccount.Value = big.NewInt(0)      // in wei
 	mainAccount.GasLimit = uint64(4000000) // in units
 	mainAccount.GasPrice = big.NewInt(0)
-	configRewardInstance, _ := configReward.NewConfigReward(mainAccount, common.HexToAddress(common.ConfigRewardAddr), client)
-	fmt.Println(configRewardInstance.GetRate())
-
-	//foudationInstance, _ := multisigwallet.NewMultiSigWallet(mainAccount, common.HexToAddress(common.FoudationAddr), client)
-	//foudationInstance.SubmitTransaction()
 	smcTestAddr, smcTestInsance, err := DeployContract1(mainAccount, client)
 	if err != nil {
 		fmt.Println("DeployContract1", err)
@@ -86,5 +81,83 @@ func TestLocalhost(t *testing.T) {
 	}
 	time.Sleep(10 * time.Second) // wait process transaction : func addB() at smart contract 2
 	fmt.Println(smcTest2Insance.GetB())
+}
+func testChangConfigReward() {
+	client, err := ethclient.Dial(rcpEndPoint)
+	if err != nil {
+		fmt.Println(err, client)
+	}
+	newRate := big.NewInt(15)
+	nonce, _ := client.NonceAt(context.Background(), acc1Addr, nil)
+	acc1Account := bind.NewKeyedTransactor(acc1Key)
+	acc1Account.Nonce = big.NewInt(int64(nonce))
+	acc1Account.Value = big.NewInt(0)      // in wei
+	acc1Account.GasLimit = uint64(4000000) // in units
+	acc1Account.GasPrice = big.NewInt(0)
+	acc1Instance, _ := configReward.NewConfigReward(acc1Account, common.HexToAddress(common.ConfigRewardAddr), client)
+	acc1Instance.SubmitTransaction(newRate)
+	time.Sleep(10 * time.Second) // wait process transaction : func  at smart contract
+	transactionId, err := acc1Instance.GetTransactionCount(true, true)
+	if err != nil {
+		fmt.Println("get transactionId", err)
+	}
+	nonce, _ = client.NonceAt(context.Background(), acc2Addr, nil)
+	acc2Account := bind.NewKeyedTransactor(acc2Key)
+	acc2Account.Nonce = big.NewInt(int64(nonce))
+	acc2Account.Value = big.NewInt(0)      // in wei
+	acc2Account.GasLimit = uint64(4000000) // in units
+	acc2Account.GasPrice = big.NewInt(0)
+	acc2Instance, _ := configReward.NewConfigReward(acc2Account, common.HexToAddress(common.ConfigRewardAddr), client)
+	acc2Instance.ConfirmTransaction(new(big.Int).Sub(transactionId, big.NewInt(1)))
+	time.Sleep(10 * time.Second) // wait process transaction : func  at smart contract
 
+	fmt.Println("new rate")
+	fmt.Println(acc2Instance.GetRate())
+}
+
+func testFoundationWallet() {
+	client, err := ethclient.Dial(rcpEndPoint)
+	if err != nil {
+		fmt.Println(err, client)
+	}
+	amount := big.NewInt(10000000)
+	to := common.HexToAddress("0x2da72c9c4792e2ba85e2b980af4c6aa9afa9f3df")
+	toBalance, _ := client.BalanceAt(context.Background(), to, nil)
+	foundationBalance, _ := client.BalanceAt(context.Background(), common.HexToAddress(common.FoudationAddr), nil)
+	if foundationBalance.Cmp(toBalance) < 0 {
+		fmt.Println("foundation address not enough balance")
+		return
+	}
+	fmt.Println("before sent", toBalance)
+	nonce, _ := client.NonceAt(context.Background(), acc1Addr, nil)
+	acc1Account := bind.NewKeyedTransactor(acc1Key)
+	acc1Account.Nonce = big.NewInt(int64(nonce))
+	acc1Account.Value = big.NewInt(0)      // in wei
+	acc1Account.GasLimit = uint64(4000000) // in units
+	acc1Account.GasPrice = big.NewInt(0)
+	acc1Instance, _ := multisigwallet.NewMultiSigWallet(acc1Account, common.HexToAddress(common.FoudationAddr), client)
+	acc1Instance.SubmitTransaction(to, amount, nil)
+	time.Sleep(10 * time.Second) // wait process transaction : func  at smart contract
+	transactionId, err := acc1Instance.GetTransactionCount(true, true)
+	if err != nil {
+		fmt.Println("get transactionId", err)
+	}
+	nonce, _ = client.NonceAt(context.Background(), acc2Addr, nil)
+	acc2Account := bind.NewKeyedTransactor(acc2Key)
+	acc2Account.Nonce = big.NewInt(int64(nonce))
+	acc2Account.Value = big.NewInt(0)      // in wei
+	acc2Account.GasLimit = uint64(4000000) // in units
+	acc2Account.GasPrice = big.NewInt(0)
+	acc2Instance, _ := multisigwallet.NewMultiSigWallet(acc2Account, common.HexToAddress(common.FoudationAddr), client)
+	acc2Instance.ConfirmTransaction(new(big.Int).Sub(transactionId, big.NewInt(1)))
+	time.Sleep(10 * time.Second) // wait process transaction : func  at smart contract
+
+	fmt.Println("new balance")
+	newBalance, _ := client.BalanceAt(context.Background(), to, nil)
+	fmt.Println(newBalance)
+}
+func TestLocalhost(t *testing.T) {
+	testUpgradeSmc()
+	testChangConfigReward()
+	testFoundationWallet()
 }

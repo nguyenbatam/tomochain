@@ -98,9 +98,6 @@ func validateTxPoolInternals(pool *TxPool) error {
 	if total := len(pool.all); total != pending+queued {
 		return fmt.Errorf("total transaction count %d != %d pending + %d queued", total, pending, queued)
 	}
-	if priced := pool.priced.items.Len() - pool.priced.stales; priced != pending+queued {
-		return fmt.Errorf("total priced transaction count %d != %d pending + %d queued", priced, pending, queued)
-	}
 	// Ensure the next nonce to assign is the correct one
 	for addr, txs := range pool.pending {
 		// Find the last transaction
@@ -241,7 +238,6 @@ func TestInvalidTransactions(t *testing.T) {
 	}
 
 	tx = transaction(1, 100000, key)
-	pool.gasPrice = big.NewInt(1000)
 	if err := pool.AddLocal(tx); err != nil {
 		t.Error("expected", nil, "got", err)
 	}
